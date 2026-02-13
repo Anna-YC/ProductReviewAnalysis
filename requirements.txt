@@ -1,0 +1,10 @@
+# 产品评价分析系统 - 依赖包
+openpyxl==3.1.5
+pandas==2.2.3
+numpy==2.2.0
+jieba==0.42.1
+wordcloud==1.9.4
+matplotlib==3.9.3
+seaborn==0.13.2
+scikit-learn==1.6.0
+snownlp==0.12.3
