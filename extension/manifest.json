@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "淘宝评论助手",
-  "version": "1.0.2",
+  "version": "1.0.4",
   "description": "帮助提取淘宝/天猫商品评论数据",
   "permissions": [
     "activeTab",
@@ -24,7 +24,14 @@
         "https://*.tmall.com/*"
       ],
       "js": ["content.js"],
-      "run_at": "document_end"
+      "run_at": "document_start",
+      "all_frames": false
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["*.js"],
+      "matches": ["https://*.taobao.com/*", "https://*.tmall.com/*"]
     }
   ]
 }

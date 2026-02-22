@@ -6,9 +6,8 @@ console.log('淘宝评论助手 Popup 已加载');
 let collectedReviews = [];
 let isExtracting = false;
 let currentTabId = null;
-let extractCount = 0; // 提取次数计数器
-const MAX_EXTRACT_ATTEMPTS = 50; // 最大提取次数（防止无限循环）
-const EXTRACT_TIMEOUT = 300000; // 5分钟超时
+
+const EXTRACT_TIMEOUT = 600000; // 10分钟超时（大量评论需要更长时间）
 
 // DOM元素
 const startBtn = document.getElementById('startBtn');
@@ -65,8 +64,8 @@ startBtn.addEventListener('click', async () => {
     return;
   }
 
-  // 重置计数器
-  extractCount = 0;
+  // 重置状态
+  collectedReviews = [];
 
   // 更新UI状态
   isExtracting = true;
@@ -74,50 +73,47 @@ startBtn.addEventListener('click', async () => {
   stopBtn.style.display = 'block';
   exportBtn.disabled = true;
   progressDiv.classList.add('active');
-  showStatus('success', '开始提取评论...');
+  showStatus('success', '🚀 开始提取评论...<br>⏳ 正在定位到评论区，请稍候...');
 
-  // 设置超时检测
+  // 设置超时检测（增加到10分钟，因为大量评论需要更长时间）
   const timeoutId = setTimeout(() => {
     if (isExtracting) {
       console.error('⏰ 提取超时');
-      stopExtraction('超时，请重试');
+      stopExtraction('提取超时，可能是评论数量太多或页面加载缓慢');
     }
-  }, EXTRACT_TIMEOUT);
+  }, 600000); // 10分钟
 
   await doExtract(timeoutId);
 });
 
-// 执行提取逻辑（内部函数）
+// 执行提取逻辑（优化版 - content.js 已包含完整的滚动和翻页逻辑）
 async function doExtract(timeoutId) {
   try {
-    // 检查提取次数
-    extractCount++;
-    if (extractCount > MAX_EXTRACT_ATTEMPTS) {
-      clearTimeout(timeoutId);
-      stopExtraction(`达到最大提取次数 (${MAX_EXTRACT_ATTEMPTS})`);
-      return;
-    }
-
-    console.log(`🔄 提取第 ${extractCount}/${MAX_EXTRACT_ATTEMPTS} 次`);
+    console.log('🚀 开始提取评论（新版：content.js 会自动处理滚动和翻页）');
 
     // 向content script发送提取请求
+    // content.js 的 extractReviews 函数会：
+    // 1. 自动滚动加载所有评论
+    // 2. 自动翻页
+    // 3. 一次性返回所有评论
     const response = await chrome.tabs.sendMessage(currentTabId, { action: 'extract' });
     console.log('extract 响应:', response);
 
     if (response && response.success) {
+      // 保存数据到全局变量
+      collectedReviews = response.data || [];
+      console.log('✅ 已保存 ' + collectedReviews.length + ' 条评论到内存');
+      
       // 更新进度
       updateCount(response.count);
-
-      if (response.finished) {
-        // 提取完成
-        clearTimeout(timeoutId);
-        stopExtraction(null, response.count, true);
+      
+      // 提取完成
+      clearTimeout(timeoutId);
+      
+      if (response.count === 0) {
+        stopExtraction('未找到评论，请确保：<br>1. 页面已加载完成<br>2. 在商品详情页<br>3. 评论区可见', null, false);
       } else {
-        // 继续下一页
-        showStatus('success', `已提取 ${response.count} 条 (${extractCount}/${MAX_EXTRACT_ATTEMPTS})，继续...`);
-        setTimeout(() => {
-          doExtract(timeoutId); // 递归调用
-        }, 2500); // 增加等待时间到2.5秒
+        stopExtraction(null, response.count, true);
       }
     } else {
       throw new Error(response?.message || '提取失败');
@@ -136,7 +132,7 @@ function stopExtraction(message, finalCount = null, isSuccess = false) {
   stopBtn.style.display = 'none';
 
   if (isSuccess && finalCount !== null) {
-    showStatus('success', `✅ 提取完成！共 ${finalCount} 条评论 (${extractCount} 次操作)`);
+    showStatus('success', `✅ 提取完成！共 ${finalCount} 条评论`);
     exportBtn.disabled = false;
   } else {
     showStatus('error', message || '❌ 提取失败');

@@ -1,865 +1,767 @@
-// 淘宝评论提取插件 - 简化版（临时版本）
+// 淘宝评论助手 - CSP 兼容版
+// 由于淘宝有 CSP 限制，不能注入 inline script
+// 直接在 Content Script 上下文中运行
 
-console.log('🛒 淘宝评论助手已启动（简化版）');
-console.log('🔧 调试信息：content.js 已加载');
-console.log('📍 当前URL:', window.location.href);
+(function() {
+  'use strict';
+  
+  console.log('🛒 淘宝评论助手已启动 (CSP 兼容版)');
+  console.log('📍 当前URL:', window.location.href);
 
-// 全局变量
-let isExtracting = false;
-let reviewCount = 0;
-let allReviews = [];
-
-// 检测当前平台
-function detectPlatform() {
-  const url = window.location.href;
-  if (url.includes('detail.tmall.com') || url.includes('item.taobao.com')) {
-    return 'product_page';
-  } else if (url.includes('tmall.com')) {
-    return 'tmall';
-  } else if (url.includes('taobao.com')) {
-    return 'taobao';
+  // ==================== 工具函数 ====================
+  function detectPlatform() {
+    var url = window.location.href;
+    if (url.indexOf('tmall.com') > -1) return 'tmall';
+    if (url.indexOf('taobao.com') > -1) return 'taobao';
+    return 'unknown';
   }
-  return 'unknown';
-}
 
-// 检测是否在商品详情页
-function isProductPage() {
-  const platform = detectPlatform();
-  return platform === 'product_page' || platform === 'tmall' || platform === 'taobao';
-}
-
-// 找到"用户评价"标签页的内容容器
-function findReviewTabContainer() {
-  console.log('🔍 查找"用户评价"标签页内容容器...');
-
-  // 方法1：查找标签页内容容器（tab-content/tab-panel）
-  const contentSelectors = [
-    '[class*="tab-content"]',
-    '[class*="tab-panel"]',
-    '[class*="tab-body"]',
-    '[id*="tab-content"]',
-    '[id*="tab-panel"]',
-    '[data-role="tab-content"]'
-  ];
-
-  for (const selector of contentSelectors) {
-    const containers = document.querySelectorAll(selector);
-    console.log(`🔊 选择器 "${selector}" 找到 ${containers.length} 个容器`);
-
-    for (const container of containers) {
-      const text = container.textContent.trim();
-      // 检查容器是否包含"用户评价"相关内容
-      if (text.includes('用户评价') || text.includes('累计评价') || text.includes('评价(')) {
-        console.log(`✅ 找到可能的内容容器: ${container.className || container.id}`);
-        console.log(`   容器内文本长度: ${text.length}`);
-        return container;
+  // ==================== 评论查找 ====================
+  function findReviewItems() {
+    // 方法1: 通过类名查找（最快）
+    var selectors = [
+      '[class*="Comment--"]',
+      '[class*="RateItem--"]',
+      '[class*="comment-item"]',
+      '[class*="review-item"]',
+      '.rate-item',
+      '.tm-rate-item',
+      '.J_RateItem',
+      '[class*="rate_list"] > div',
+      '[class*="rate-list"] > div'
+    ];
+    
+    for (var i = 0; i < selectors.length; i++) {
+      try {
+        var items = document.querySelectorAll(selectors[i]);
+        if (items.length > 5) { // 至少找到5个才算有效
+          return Array.prototype.slice.call(items);
+        }
+      } catch (e) {}
+    }
+    
+    // 方法2: 通过内容特征查找
+    var all = document.querySelectorAll('div, li');
+    var results = [];
+    
+    for (var j = 0; j < all.length && j < 800; j++) {
+      var el = all[j];
+      var cls = el.className || '';
+      var id = el.id || '';
+      
+      // 跳过导航、页脚等非评论区域
+      if (cls.indexOf('nav') > -1 || cls.indexOf('header') > -1 || 
+          cls.indexOf('footer') > -1 || cls.indexOf('banner') > -1 ||
+          cls.indexOf('recommend') > -1 || cls.indexOf('sidebar') > -1) {
+        continue;
+      }
+      
+      var text = el.textContent || '';
+      // 评论项特征：包含中文、包含***用户名、包含日期、有子元素
+      if (text.length > 80 && text.length < 5000) {
+        var hasUser = text.indexOf('***') > -1 || /[\u4e00-\u9fa5]{2,4}\*{2,}/.test(text);
+        var hasDate = /20[12][0-9][年/-][01]?[0-9]/.test(text);
+        var hasChinese = /[\u4e00-\u9fa5]{30,}/.test(text);
+        var hasChildren = el.children.length >= 2;
+        
+        if (hasChinese && hasUser && hasDate && hasChildren) {
+          results.push(el);
+        }
       }
     }
+    
+    return results;
   }
 
-  // 方法2：查找包含"用户评价"的元素，然后查找其对应的内容区域
-  console.log('🔍 方法2: 通过"用户评价"标签查找对应的内容区域...');
-  const allElements = document.querySelectorAll('*');
-  console.log(`🔊 正在检查 ${allElements.length} 个元素...`);
+  // ==================== 数据提取 ====================
+  function extractReviewData(item) {
+    var text = item.textContent || '';
+    var review = {
+      user_name: '',
+      content: '',
+      rate_time: '',
+      score: 5,
+      sku: '',
+      append_content: '',
+      reply_content: ''
+    };
+    
+    // 用户名
+    var nameMatch = text.match(/([\u4e00-\u9fa5]*\*+[\u4e00-\u9fa5]*)/);
+    if (nameMatch) review.user_name = nameMatch[1];
+    
+    // 日期
+    var dateMatch = text.match(/(20[12][0-9][年\/-][01]?[0-9][月\/-][0123]?[0-9])/);
+    if (dateMatch) review.rate_time = dateMatch[1];
+    
+    // 内容 - 最长的中文段落
+    var paras = text.split(/[\n\r]+/);
+    var longest = '';
+    for (var k = 0; k < paras.length; k++) {
+      var p = paras[k].trim();
+      if (p.length > longest.length && p.length > 20 && /[\u4e00-\u9fa5]{20,}/.test(p)) {
+        // 排除已知非内容
+        if (!/20[12][0-9]/.test(p.substring(0, 10)) && 
+            p.indexOf('***') === -1 && 
+            p.indexOf('商家回复') === -1) {
+          longest = p;
+        }
+      }
+    }
+    review.content = longest;
+    
+    // 商家回复
+    var replyIdx = text.indexOf('商家回复');
+    if (replyIdx > -1) {
+      var replyText = text.substring(replyIdx + 4, replyIdx + 200);
+      review.reply_content = replyText.replace(/^[：:]/, '').trim();
+    }
+    
+    return review;
+  }
 
-  for (const el of allElements) {
-    const text = el.textContent.trim();
-
-    // 查找包含"用户评价"的标签元素
-    if (text === '用户评价' || (text.includes('用户评价') && text.length < 20)) {
-      console.log(`🔍 找到"用户评价"标签元素: "${text}"`);
-      console.log(`   标签: ${el.tagName}`);
-      console.log(`   类名: ${el.className}`);
-
-      // 向上查找标签页的父容器
-      let tabContainer = el.parentElement;
-      let depth = 0;
-
-      while (tabContainer && depth < 10) {
-        const classLower = tabContainer.className.toLowerCase();
-
-        // 查找可能是标签页的容器（包含"tab"、"list"等关键词）
-        if (classLower.includes('tab') || classLower.includes('list')) {
-          console.log(`📦 深度 ${depth}: 找到标签容器: ${tabContainer.className}`);
-
-          // 查找该标签容器的兄弟元素（内容容器）
-          if (tabContainer.parentElement) {
-            const siblings = tabContainer.parentElement.children;
-            console.log(`📊 标签容器有 ${siblings.length} 个兄弟元素`);
-
-            for (const sibling of siblings) {
-              const siblingClass = sibling.className.toLowerCase();
-              const siblingText = sibling.textContent.trim();
-
-              // 查找可能是内容容器的兄弟元素
-              if (sibling !== tabContainer &&
-                  (siblingClass.includes('content') ||
-                   siblingClass.includes('panel') ||
-                   siblingClass.includes('body')) &&
-                  siblingText.length > 100) {
-                console.log(`✅ 找到可能的内容容器（兄弟元素）: ${sibling.className || sibling.id}`);
-                console.log(`   内容长度: ${siblingText.length}`);
-                return sibling;
-              }
+  function extractAll() {
+    console.log('📊 开始提取评论数据...');
+    
+    var items = findReviewItems();
+    console.log('找到 ' + items.length + ' 个评论元素');
+    
+    var reviews = [];
+    var seen = {};
+    
+    for (var i = 0; i < items.length; i++) {
+      try {
+        var item = items[i];
+        var text = item.textContent || '';
+        
+        // 简单提取：找用户名、日期、内容
+        var review = {
+          id: 'r_' + Date.now() + '_' + i,
+          platform: detectPlatform(),
+          user_name: '',
+          content: '',
+          rate_time: '',
+          score: 5
+        };
+        
+        // 提取用户名 (***) 
+        var nameMatch = text.match(/([\u4e00-\u9fa5]*\*+[\u4e00-\u9fa5]*)/);
+        if (nameMatch) review.user_name = nameMatch[1];
+        
+        // 提取日期
+        var dateMatch = text.match(/(20[12][0-9][年\/-][01]?[0-9][月\/-][0123]?[0-9])/);
+        if (dateMatch) review.rate_time = dateMatch[1];
+        
+        // 提取内容 - 找最长的中文段落（排除日期和用户名）
+        var lines = text.split(/[\n\r]+/);
+        var longest = '';
+        for (var j = 0; j < lines.length; j++) {
+          var line = lines[j].trim();
+          // 至少20个字符，包含中文
+          if (line.length > longest.length && line.length >= 20 && /[\u4e00-\u9fa5]{10,}/.test(line)) {
+            // 排除日期行和用户名行
+            if (!/20[12][0-9]{3}/.test(line.substring(0, 15)) && 
+                line.indexOf('***') === -1 &&
+                line.indexOf('商家回复') !== 0 &&
+                line.indexOf('颜色分类') !== 0 &&
+                line.indexOf(' days') === -1) {
+              longest = line;
             }
           }
         }
-
-        tabContainer = tabContainer.parentElement;
-        depth++;
+        review.content = longest;
+        
+        // 提取商家回复（如果有）
+        var replyMatch = text.match(/商家回复[：:]?\s*([^\n]+)/);
+        if (replyMatch) {
+          review.reply_content = replyMatch[1].trim();
+        }
+        
+        // 提取追评（如果有）
+        var appendMatch = text.match(/(\d+天[后前])?[追补]评[：:]?\s*([^\n]+)/);
+        if (appendMatch) {
+          review.append_content = appendMatch[2].trim();
+        }
+        
+        // 提取SKU
+        var skuMatch = text.match(/颜色分类[：:]\s*([^\n]+)/);
+        if (skuMatch) {
+          review.sku = skuMatch[1].trim();
+        }
+        
+        // 保存评论（只要有内容就行）
+        if (review.content.length >= 10) {
+          // 去重
+          var key = (review.user_name + '_' + review.content.substring(0, 20)).replace(/\s/g, '');
+          if (!seen[key]) {
+            seen[key] = true;
+            reviews.push(review);
+          }
+        }
+        
+      } catch (e) {
+        console.warn('提取第 ' + i + ' 条失败:', e);
       }
     }
+    
+    console.log('✅ 提取完成，共 ' + reviews.length + ' 条');
+    return reviews;
   }
 
-  // 方法3：直接在整个页面查找包含"查看全部评价"的元素
-  console.log('🔍 方法3: 在全页面查找"查看全部评价"元素...');
-  const allLinks = document.querySelectorAll('a, button');
-  console.log(`🔊 全页面有 ${allLinks.length} 个可点击元素`);
-
-  for (const el of allLinks) {
-    const text = el.textContent.trim();
-    if (text.length > 3 && text.length < 80) {
-      if ((text.includes('查看') || text.includes('全部')) &&
-          (text.includes('评价') || text.includes('评论'))) {
-        console.log(`✅ 找到"查看全部评价"按钮: "${text}"`);
-        console.log(`   标签: ${el.tagName}`);
-        console.log(`   类名: ${el.className}`);
-        // 返回该元素的父容器
-        if (el.parentElement) {
-          console.log(`   父容器: ${el.parentElement.className || el.parentElement.id}`);
-          return el.parentElement;
+  // ==================== 定位到评论区 ====================
+  async function navigateToReviews() {
+    console.log('🔍 尝试定位到评论区...');
+    
+    // 先检查是否已经在评论区
+    var initialCount = findReviewItems().length;
+    if (initialCount > 5) {
+      console.log('✅ 已经在评论区，有 ' + initialCount + ' 条评论');
+      return;
+    }
+    
+    // 方法1: 精确查找"用户评价"标签
+    console.log('🔍 方法1: 查找评价标签...');
+    
+    // 先尝试通过更精确的选择器查找标签
+    var tabContainerSelectors = [
+      '[class*="tab--"]',           // 新版动态类名
+      '[class*="Tabs--"]',          
+      '[role="tablist"]',           // ARIA 角色
+      '.tm-clear.J_TabBar',         // 旧版类名
+      '.tabbar',                    
+      '[class*="tabbar"]',
+      '[class*="TabBar"]'
+    ];
+    
+    var clicked = false;
+    
+    for (var s = 0; s < tabContainerSelectors.length; s++) {
+      var container = document.querySelector(tabContainerSelectors[s]);
+      if (container) {
+        console.log('✅ 找到标签容器: ' + tabContainerSelectors[s]);
+        
+        // 在容器内查找"用户评价"标签
+        var tabs = container.querySelectorAll('*');
+        for (var t = 0; t < tabs.length; t++) {
+          var tabText = tabs[t].textContent || '';
+          
+          // 精确匹配"用户评价"
+          if (tabText === '用户评价' || 
+              (tabText.indexOf('用户评价') > -1 && tabText.length < 20)) {
+            console.log('✅ 找到"用户评价"标签，准备点击');
+            
+            // 滚动到标签位置
+            tabs[t].scrollIntoView({ behavior: 'smooth', block: 'center' });
+            await new Promise(function(r) { setTimeout(r, 1000); });
+            
+            // 点击标签
+            tabs[t].click();
+            console.log('✅ 已点击"用户评价"标签');
+            clicked = true;
+            
+            // 等待评论区加载
+            await new Promise(function(r) { setTimeout(r, 4000); });
+            
+            // 检查是否成功进入评论区
+            var afterClickCount = findReviewItems().length;
+            console.log('点击后评论数: ' + afterClickCount);
+            
+            if (afterClickCount > 0) {
+              console.log('✅ 成功进入评论区');
+              return;
+            } else {
+              console.log('⚠️ 点击后未找到评论，可能需要点击"查看全部评价"');
+            }
+            break;
+          }
+        }
+        
+        if (clicked) break;
+      }
+    }
+    
+    // 方法2: 如果没找到，尝试全页面搜索点击
+    if (!clicked) {
+      console.log('🔍 方法2: 全页面搜索评价标签...');
+      var allElements = document.querySelectorAll('a, button, span, div, [role="tab"]');
+      
+      for (var i = 0; i < allElements.length && !clicked; i++) {
+        var el = allElements[i];
+        var text = el.textContent || '';
+        
+        // 严格匹配
+        if (text === '用户评价' || text === '宝贝评价' || text === '商品评价') {
+          console.log('✅ 找到精确匹配: "' + text + '"');
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          await new Promise(function(r) { setTimeout(r, 1000); });
+          el.click();
+          clicked = true;
+          await new Promise(function(r) { setTimeout(r, 4000); });
+          
+          if (findReviewItems().length > 0) {
+            return;
+          }
         }
       }
     }
+    
+    // 方法3: 尝试点击"查看全部评价"按钮
+    console.log('🔍 方法3: 尝试点击"查看全部评价"...');
+    var viewAllClicked = await clickViewAllReviews();
+    
+    if (viewAllClicked) {
+      // 点击后再次检查
+      var afterViewAll = findReviewItems().length;
+      console.log('点击"查看全部评价"后评论数:', afterViewAll);
+      
+      if (afterViewAll > 10) {
+        console.log('✅ 成功加载评论区');
+        return;
+      }
+    }
+    
+    // 方法4: 直接滚动查找
+    console.log('🔍 方法4: 滚动查找评论区...');
+    for (var scrollNum = 0; scrollNum < 50; scrollNum++) {
+      window.scrollBy(0, window.innerHeight * 0.4);
+      await new Promise(function(r) { setTimeout(r, 600); });
+      
+      if (scrollNum % 3 === 0) {
+        var count = findReviewItems().length;
+        if (scrollNum % 10 === 0) {
+          console.log('  滚动 ' + scrollNum + ' 次，找到 ' + count + ' 条');
+        }
+        if (count > 10) {
+          console.log('✅ 找到评论区，有 ' + count + ' 条评论');
+          return;
+        }
+      }
+    }
+    
+    console.log('⚠️ 未能自动定位到评论区，当前评论数:', findReviewItems().length);
+    console.log('💡 建议手动点击"用户评价"标签和"查看全部评价"按钮后再试');
   }
-
-  console.log('⚠️ 所有方法都未找到"用户评价"内容容器');
-  return null;
-}
-
-// 在指定容器内查找并点击"查看全部评价"按钮
-async function clickViewAllReviewsButton() {
-  console.log('🔍 查找"查看全部评价"按钮...');
-
-  // 【步骤0】优先通过已知类名直接搜索（根据用户控制台诊断）
-  console.log('🔍 步骤 0: 通过类名直接搜索...');
-  const directSelectors = [
-    '.ShowButton--fMu7HZNs',           // 用户控制台确认的类名
-    '[class*="ShowButton"]',            // 包含ShowButton的类
-    'div[class*="ShowButton"]',         // DIV元素包含ShowButton
-  ];
-
-  for (const selector of directSelectors) {
-    try {
-      const button = document.querySelector(selector);
-      if (button) {
-        const text = button.textContent.trim();
-        console.log(`✅ 通过选择器 "${selector}" 找到元素`);
-        console.log(`   文本: "${text}"`);
-        console.log(`   标签: ${button.tagName}`);
-        console.log(`   类名: ${button.className}`);
-
-        // 验证是否是"查看全部评价"按钮
-        if (text.includes('查看') && text.includes('评价')) {
-          console.log('✅ 确认是"查看全部评价"按钮，准备点击...');
-
-          // 记录点击前的URL
-          const beforeUrl = window.location.href;
-          console.log(`📍 点击前URL: ${beforeUrl}`);
-
-          button.click();
-          console.log('✅ 已点击"查看全部评价"按钮');
-
-          // 等待页面跳转或内容加载
-          await new Promise(resolve => setTimeout(resolve, 3000));
-
-          // 检测是否跳转了
-          const afterUrl = window.location.href;
-          console.log(`📍 点击后URL: ${afterUrl}`);
-
-          if (beforeUrl !== afterUrl) {
-            console.log('✅ 检测到页面已跳转，等待新页面加载...');
-            // 等待新页面完全加载
-            await new Promise(resolve => setTimeout(resolve, 5000));
-            console.log(`✅ 新页面已加载: ${window.location.href}`);
+  
+  // 点击"查看全部评价"按钮 - 改进版
+  async function clickViewAllReviews() {
+    console.log('🔍 查找"查看全部评价"按钮...');
+    
+    // 记录当前URL
+    var beforeUrl = window.location.href;
+    console.log('📍 当前URL:', beforeUrl);
+    
+    // 多种可能的按钮文本
+    var buttonTexts = ['查看全部评价', '全部评价', '查看更多评价', '查看评价'];
+    
+    // 方法1: 通过类名查找（新版淘宝）
+    var classSelectors = [
+      '[class*="ShowButton--"]',
+      '[class*="showButton--"]',
+      '[class*="ViewAll--"]',
+      '[class*="viewAll--"]',
+      '[class*="showMore--"]'
+    ];
+    
+    for (var s = 0; s < classSelectors.length; s++) {
+      var btn = document.querySelector(classSelectors[s]);
+      if (btn) {
+        var btnText = btn.textContent || '';
+        console.log('✅ 通过类名找到按钮:', btnText);
+        
+        // 滚动到按钮
+        btn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        await new Promise(function(r) { setTimeout(r, 1000); });
+        
+        // 使用多种方式点击
+        clickElement(btn);
+        console.log('✅ 已点击按钮（类名方式）');
+        
+        // 等待跳转
+        await new Promise(function(r) { setTimeout(r, 5000); });
+        
+        // 检查是否跳转
+        if (window.location.href !== beforeUrl || findReviewItems().length > 10) {
+          console.log('✅ 页面已变化，跳转成功');
+          return true;
+        }
+      }
+    }
+    
+    // 方法2: 通过文本内容查找
+    console.log('🔍 通过文本查找按钮...');
+    var allElements = document.querySelectorAll('a, button, span, div');
+    
+    for (var i = 0; i < allElements.length; i++) {
+      var el = allElements[i];
+      var text = el.textContent || '';
+      
+      for (var j = 0; j < buttonTexts.length; j++) {
+        // 精确匹配或包含
+        if ((text === buttonTexts[j] || text.indexOf(buttonTexts[j]) > -1) && 
+            text.length < 100) {
+          
+          // 检查可见性
+          var rect = el.getBoundingClientRect();
+          if (rect.width === 0 || rect.height === 0) continue;
+          
+          var style = window.getComputedStyle(el);
+          if (style.display === 'none' || style.visibility === 'hidden') continue;
+          
+          console.log('✅ 找到按钮: "' + text + '"');
+          console.log('   标签:', el.tagName);
+          console.log('   类名:', el.className);
+          
+          // 滚动到按钮
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          await new Promise(function(r) { setTimeout(r, 1000); });
+          
+          // 多种方式点击
+          clickElement(el);
+          console.log('✅ 已点击按钮（文本方式）');
+          
+          // 等待跳转
+          await new Promise(function(r) { setTimeout(r, 5000); });
+          
+          // 检查是否跳转成功
+          var afterUrl = window.location.href;
+          var reviewCount = findReviewItems().length;
+          
+          console.log('📍 点击后URL:', afterUrl);
+          console.log('📊 评论数:', reviewCount);
+          
+          if (afterUrl !== beforeUrl || reviewCount > 10) {
+            console.log('✅ 跳转成功或有评论加载');
             return true;
           } else {
-            console.log('⚠️ 未检测到跳转，可能是同页展开');
+            console.log('⚠️ 点击后无明显变化，尝试下一个按钮');
+          }
+        }
+      }
+    }
+    
+    console.log('⚠️ 未找到有效的"查看全部评价"按钮');
+    return false;
+  }
+  
+  // 可靠的元素点击方式
+  function clickElement(el) {
+    // 方式1: 直接点击
+    el.click();
+    
+    // 方式2: 创建并分发鼠标事件
+    try {
+      var mousedown = new MouseEvent('mousedown', {
+        bubbles: true,
+        cancelable: true,
+        view: window
+      });
+      var mouseup = new MouseEvent('mouseup', {
+        bubbles: true,
+        cancelable: true,
+        view: window
+      });
+      var click = new MouseEvent('click', {
+        bubbles: true,
+        cancelable: true,
+        view: window
+      });
+      
+      el.dispatchEvent(mousedown);
+      el.dispatchEvent(mouseup);
+      el.dispatchEvent(click);
+    } catch (e) {}
+    
+    // 方式3: 如果是链接，尝试获取href并跳转
+    if (el.tagName === 'A' && el.href && el.href !== '#') {
+      console.log('   检测到链接，href:', el.href);
+      // 不直接跳转，让点击事件处理
+    }
+  }
+
+  // ==================== 滚动加载 ====================
+  async function scrollLoad() {
+    console.log('🔄 开始滚动加载...');
+    
+    // 先定位到评论区
+    await navigateToReviews();
+    
+    var last = findReviewItems().length;
+    console.log('初始评论数:', last);
+    
+    var noChangeCount = 0;
+    var consecutiveNoChange = 0;
+    var lastScrollHeight = document.body.scrollHeight;
+    
+    for (var i = 0; i < 200; i++) {
+      // 滚动到评论区底部（而不是页面底部）
+      var reviewItems = findReviewItems();
+      if (reviewItems.length > 0) {
+        // 滚动到最后一个评论项
+        var lastItem = reviewItems[reviewItems.length - 1];
+        lastItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else {
+        // 如果没有找到评论，向下滚动一屏
+        window.scrollBy(0, window.innerHeight * 0.8);
+      }
+      
+      // 等待懒加载触发（增加等待时间）
+      await new Promise(function(r) { setTimeout(r, 3000); });
+      
+      // 检测评论数变化
+      var curr = findReviewItems().length;
+      var currentScrollHeight = document.body.scrollHeight;
+      
+      if (curr > last) {
+        console.log('📈 评论增加: ' + last + ' -> ' + curr);
+        last = curr;
+        noChangeCount = 0;
+        consecutiveNoChange = 0;
+        lastScrollHeight = currentScrollHeight;
+      } else {
+        noChangeCount++;
+        // 即使评论数没变，如果页面高度变了，说明还在加载
+        if (Math.abs(currentScrollHeight - lastScrollHeight) > 100) {
+          console.log('📏 页面高度变化，继续加载...');
+          lastScrollHeight = currentScrollHeight;
+          consecutiveNoChange = 0;
+        } else {
+          consecutiveNoChange++;
+        }
+      }
+      
+      // 输出进度
+      if (i % 5 === 0) {
+        console.log('  进度: ' + i + ' 次滚动, ' + curr + ' 条评论');
+      }
+      
+      // 停止条件：连续多次无变化
+      if (consecutiveNoChange >= 10) {
+        console.log('⏹️ 连续 ' + consecutiveNoChange + ' 次无变化，停止滚动');
+        console.log('✅ 最终评论数: ' + last);
+        break;
+      }
+      
+      // 尝试点击"加载更多"按钮（如果有）
+      if (consecutiveNoChange >= 3 && consecutiveNoChange < 10) {
+        var clicked = await clickLoadMoreButton();
+        if (clicked) {
+          console.log('🔘 点击了加载更多按钮');
+          consecutiveNoChange = 0;
+          await new Promise(function(r) { setTimeout(r, 3000); });
+        }
+      }
+    }
+    
+    console.log('✅ 滚动完成，共 ' + last + ' 条评论');
+    return last;
+  }
+  
+  // 点击"加载更多"按钮
+  async function clickLoadMoreButton() {
+    var texts = ['加载更多', '查看更多', '展开更多', '显示更多'];
+    var elements = document.querySelectorAll('button, a, span, div');
+    
+    for (var i = 0; i < elements.length; i++) {
+      var el = elements[i];
+      var text = el.textContent || '';
+      
+      for (var j = 0; j < texts.length; j++) {
+        if (text.indexOf(texts[j]) > -1 && text.length < 50) {
+          var rect = el.getBoundingClientRect();
+          if (rect.width > 0 && rect.height > 0 && rect.top > 0 && rect.top < window.innerHeight) {
+            el.click();
             return true;
           }
         }
       }
-    } catch (e) {
-      console.log(`⚠️ 选择器 "${selector}" 搜索失败:`, e);
     }
+    return false;
   }
 
-  // 【步骤1】在整个页面通过文本搜索（不限定容器）
-  console.log('🔍 步骤 1: 在全页面通过文本搜索...');
-  const allClickable = document.querySelectorAll('a, button, [role="button"], [onclick], div, span');
-  console.log(`🔊 全页面找到 ${allClickable.length} 个可点击元素`);
-
-  for (const el of allClickable) {
-    const text = el.textContent.trim();
-    // 只检查长度合理的文本（避免匹配整个容器内容）
-    if (text.length > 3 && text.length < 80) {
-      // 查找包含"查看"、"全部"、"更多"的按钮
-      if ((text.includes('查看') || text.includes('全部')) &&
-          (text.includes('评价') || text.includes('评论'))) {
-        console.log(`✅ 在全页面找到"查看全部评价"按钮: "${text}"`);
-        console.log(`   标签: ${el.tagName}`);
-        console.log(`   类名: ${el.className}`);
-
-        try {
-          el.click();
-          console.log('✅ 已点击按钮');
-          await new Promise(resolve => setTimeout(resolve, 3000));
-          return true;
-        } catch (e) {
-          console.warn('⚠️ 点击按钮失败:', e);
-        }
-      }
-    }
-  }
-
-  console.log('⚠️ 全页面未找到"查看全部评价"按钮');
-  return false;
-}
-
-// 自动滚动加载更多评论
-async function autoScrollToLoadMore() {
-  console.log('🔄 开始自动滚动加载评论...');
-
-  let scrollCount = 0;
-  let lastReviewCount = 0;
-  let noChangeCount = 0;
-
-  // 使用动态查找统计评论数
-  const countReviews = () => {
-    return findReviewItemsDynamically().length;
-  };
-
-  lastReviewCount = countReviews();
-  console.log(`📊 初始评论数: ${lastReviewCount}`);
-
-  for (let i = 0; i < 100; i++) {  // 增加到100次
-    // 滚动到底部
-    window.scrollTo(0, document.body.scrollHeight);
-
-    scrollCount++;
-
-    // 每5次输出一次
-    if (scrollCount % 5 === 0) {
-      console.log(`📜 滚动进度: ${scrollCount}/100`);
-    }
-
-    // 等待加载（增加到2000ms）
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    // 检测评论数变化
-    const currentReviews = countReviews();
-    if (currentReviews !== lastReviewCount) {
-      console.log(`📊 评论数变化: ${lastReviewCount} → ${currentReviews}`);
-      lastReviewCount = currentReviews;
-      noChangeCount = 0;
-    } else {
-      noChangeCount++;
-      // 增加容忍度到5次
-      if (noChangeCount >= 5) {
-        console.log('✅ 评论数不再变化，停止滚动');
-        break;
-      }
-    }
-  }
-
-  const finalReviews = countReviews();
-  console.log(`🏁 滚动完成，最终评论数: ${finalReviews}`);
-  return finalReviews;
-}
-
-// 智能查找评论项（动态检测页面结构）
-function findReviewItemsDynamically() {
-  console.log('🔍 动态检测评论项...');
-
-  // 【优先】直接使用已知的评论项类名
-  const directSelectors = [
-    '.Comment--H5QmJwe9',              // 当前页面的评论项类名
-    '[class*="Comment--"]',               // 包含Comment--的类
-    '.comment-item',
-    '.review-item',
-    '[class*="review-item"]',
-    '[class*="comment-item"]',
-  ];
-
-  for (const selector of directSelectors) {
+  async function runExtract() {
+    console.log('🚀 开始完整提取...');
+    
+    // 步骤0: 确保在评论区
+    await navigateToReviews();
+    
+    // 步骤1: 滚动加载所有评论
+    console.log('步骤1: 滚动加载所有评论...');
+    await scrollLoad();
+    
+    // 步骤2: 提取评论数据
+    console.log('步骤2: 提取评论数据...');
+    var data = extractAll();
+    
+    console.log('✅ 完成！共 ' + data.length + ' 条');
+    
+    // 保存到全局变量供调试
     try {
-      const items = document.querySelectorAll(selector);
-      if (items.length > 0) {
-        console.log(`✅ 选择器 "${selector}" 找到 ${items.length} 个评论项`);
-
-        // 验证是否确实是评论项
-        let validCount = 0;
-        items.forEach(item => {
-          // 检查是否包含评论特征元素
-          if (item.querySelector('[class*="content"]') ||
-              item.querySelector('[class*="user"]') ||
-              item.querySelector('[class*="header"]')) {
-            validCount++;
-          }
-        });
-
-        if (validCount > 0) {
-          console.log(`✅ 找到 ${validCount} 个有效评论项`);
-          return Array.from(items);
-        }
-      }
-    } catch (e) {
-      // 忽略无效选择器
-    }
+      window._lastExtractedData = data;
+    } catch (e) {}
+    
+    return { success: true, count: data.length, data: data };
   }
 
-  // 【备用】通过内容特征查找
-  console.log('🔍 使用内容特征查找评论项...');
-  const allDivs = document.querySelectorAll('div, li, article');
-  console.log(`🔊 全页面有 ${allDivs.length} 个容器元素`);
-
-  const candidateItems = [];
-
-  for (const div of allDivs) {
-    const text = div.textContent.trim();
-
-    // 更严格的过滤：只选择具有评论结构的元素
-    if (text.length > 50 && text.length < 5000) { // 合理长度范围
-      // 检查是否包含用户名（***、用户、匿名等）
-      const hasUserName = /[\u533f\u533a\u5316\u540d]{2,4}\*\*\*|匿名|用户_\d+/.test(text) ||
-                          div.querySelector('[class*="Name"]') ||
-                          div.querySelector('[class*="User"]');
-
-      // 检查是否包含评论内容（较长的中文文本）
-      const hasLongContent = /[\u4e00-\u9fa5]{30,}/.test(text);
-
-      // 检查是否包含日期
-      const hasDate = /20[12][0-9]年/.test(text);
-
-      // 检查子元素数量（评论项通常有多个子元素）
-      const hasChildren = div.children.length >= 2 && div.children.length <= 10;
-
-      // 必须同时满足：有用户名、有内容、有子元素
-      if ((hasUserName || hasDate) && hasLongContent && hasChildren) {
-        // 排除已知的不相关元素
-        const className = div.className || '';
-        if (!className.includes('site-nav') &&
-            !className.includes('tb-footer') &&
-            !className.includes('Recommend') &&
-            !className.includes('PurchasePanel')) {
-          candidateItems.push({
-            element: div,
-            className: className,
-            textLength: text.length,
-            childCount: div.children.length
-          });
-        }
-      }
-    }
-  }
-
-  console.log(`🔊 找到 ${candidateItems.length} 个候选评论项`);
-
-  if (candidateItems.length > 0) {
-    // 输出前3个候选项供调试
-    candidateItems.slice(0, 3).forEach((item, idx) => {
-      console.log(`候选 ${idx + 1}: 类名="${item.className}", 子元素=${item.childCount}, 文本长度=${item.textLength}`);
-    });
-
-    // 返回候选元素
-    return candidateItems.map(item => item.element);
-  }
-
-  console.log('⚠️ 未找到任何评论项');
-  return [];
-}
-
-// 提取评论数据
-function extractReviewsFromPage() {
-  console.log('📊 开始提取评论数据...');
-
-  const reviews = [];
-
-  // 使用动态查找
-  const reviewItems = findReviewItemsDynamically();
-
-  console.log(`🔍 找到 ${reviewItems.length} 个评论项`);
-
-  reviewItems.forEach((item, index) => {
-    try {
-      console.log(`\n🔍 处理第 ${index + 1} 个评论项...`);
-      console.log(`   元素类名: ${item.className || '无类名'}`);
-      console.log(`   元素标签: ${item.tagName}`);
-      console.log(`   子元素数: ${item.children.length}`);
-      console.log(`   文本长度: ${item.textContent.trim().length}`);
-
-      const review = {
-        id: `review_${Date.now()}_${index}`,
-        platform: detectPlatform(),
-        user_name: '',
-        user_level: '',
-        content: '',
-        rate_time: '',
-        score: 5,
-        sku: '',
-        append_content: '',
-        append_time: '',
-        has_image: false,
-        images: [],
-        reply_content: ''
-      };
-
-      // 【调试】输出所有子元素的类名
-      console.log(`   子元素类名列表:`);
-      Array.from(item.children).forEach((child, idx) => {
-        const tag = child.tagName;
-        const className = child.className || '无';
-        const text = child.textContent.trim().substring(0, 30);
-        console.log(`      [${idx}] ${tag} .${className} = "${text}"`);
-      });
-
-      // 扩展的选择器列表（兼容新旧页面）
-      const nameSelectors = [
-        '.tm-user-name',
-        '.rate-user-name',
-        '.user-name',
-        '[class*="user"][class*="name"]',
-        '[class*="User"]',
-        '[class*="Name"]',
-        'span[class*="user"]',
-        'span[class*="nick"]',
-        '[class*="userInfo"]',  // 当前页面用户信息类名
-        '[class*="Name"]'       // 当前页面用户名类名
-      ];
-
-      for (const selector of nameSelectors) {
-        const nameEl = item.querySelector(selector);
-        if (nameEl && nameEl.textContent.trim()) {
-          const text = nameEl.textContent.trim();
-          // 过滤掉日期等非用户名文本
-          if (!text.includes('年') && !text.includes('月') && text.length < 50) {
-            review.user_name = text;
-            console.log(`   ✅ 用户名: "${review.user_name}" (选择器: ${selector})`);
-            break;
-          }
-        }
-      }
-
-      // 【评论内容】只提取评论文本，不包括商家回复
-      const contentSelectors = [
-        '.content--uonoOhaz',           // 当前页面评论文本类名（最准确）
-        '.tm-collep-detail',
-        '.rate-comment-detail',
-        '.comment-content',
-        '[class*="content"][class*="uono"]',  // 包含content和uono的类
-        'div[class*="content"]',
-        'span[class*="content"]',
-        '[class*="text"]'
-      ];
-
-      for (const selector of contentSelectors) {
-        const contentEl = item.querySelector(selector);
-        if (contentEl && contentEl.textContent.trim()) {
-          const text = contentEl.textContent.trim();
-          // 过滤掉"商家回复"等前缀
-          let cleanText = text.replace(/^商家回复：/, '').trim();
-          if (cleanText.length > 5) { // 至少5个字符才认为是有效内容
-            review.content = cleanText;
-            console.log(`   ✅ 评论内容: "${review.content.substring(0, 50)}..." (选择器: ${selector})`);
-            break;
-          }
-        }
-      }
-
-      // 【商家回复】单独提取
-      const replySelectors = [
-        '.reply--ERRy5ue4',              // 当前页面商家回复类名
-        '[class*="reply"]',
-        '[class*="Reply"]',
-        'div[class*="merchant"]',
-        'div[class*="seller"]'
-      ];
-
-      for (const selector of replySelectors) {
-        const replyEl = item.querySelector(selector);
-        if (replyEl && replyEl.textContent.trim()) {
-          const text = replyEl.textContent.trim();
-          // 过滤掉"商家回复："前缀
-          let cleanText = text.replace(/^商家回复：/, '').trim();
-          if (cleanText.length > 5) {
-            review.reply_content = cleanText;
-            console.log(`   ✅ 商家回复: "${review.reply_content.substring(0, 50)}..." (选择器: ${selector})`);
-            break;
-          }
-        }
-      }
-
-      // 【追评内容】单独提取
-      const appendSelectors = [
-        '.append--WvlQlFdT',             // 当前页面追评类名
-        '[class*="append"]',
-        '[class*="Append"]',
-        'div[class*="additional"]'
-      ];
-
-      for (const selector of appendSelectors) {
-        const appendEl = item.querySelector(selector);
-        if (appendEl && appendEl.textContent.trim()) {
-          const text = appendEl.textContent.trim();
-          // 过滤掉"天后追评："前缀
-          let cleanText = text.replace(/^\d+天后追评：/, '').trim();
-          if (cleanText.length > 5) {
-            review.append_content = cleanText;
-            console.log(`   ✅ 追评内容: "${review.append_content.substring(0, 50)}..." (选择器: ${selector})`);
-            break;
-          }
-        }
-      }
-
-      const scoreSelectors = [
-        '.rate-score',
-        '.score',
-        '[data-rate]',
-        '[class*="score"]',
-        '[class*="Score"]',
-        '[class*="star"]'
-      ];
-
-      for (const selector of scoreSelectors) {
-        const scoreEl = item.querySelector(selector);
-        if (scoreEl) {
-          const scoreText = scoreEl.textContent || scoreEl.getAttribute('data-rate');
-          const score = parseInt(scoreText);
-          if (!isNaN(score) && score > 0) {
-            review.score = score;
-            console.log(`   ✅ 评分: ${review.score} (选择器: ${selector})`);
-            break;
-          }
-        }
-      }
-
-      const dateSelectors = [
-        '.tm-collep-date',
-        '.rate-time',
-        '.date',
-        '.time',
-        '[class*="date"]',
-        '[class*="Date"]',
-        '[class*="time"]',
-        '[class*="Time"]'
-      ];
-
-      for (const selector of dateSelectors) {
-        const dateEl = item.querySelector(selector);
-        if (dateEl && dateEl.textContent.trim()) {
-          review.rate_time = dateEl.textContent.trim();
-          console.log(`   ✅ 日期: "${review.rate_time}" (选择器: ${selector})`);
-          break;
-        }
-      }
-
-      // 如果没找到评论内容，尝试从整个元素中提取
-      if (!review.content) {
-        console.log(`   ⚠️ 未找到评论内容，尝试智能提取...`);
-        // 查找包含较长的中文文本的元素
-        const allDescendants = item.querySelectorAll('*');
-        for (const el of allDescendants) {
-          const text = el.textContent.trim();
-          const className = el.className || '';
-
-          // 跳过已知非内容元素
-          if (className.includes('reply') ||
-              className.includes('Reply') ||
-              className.includes('append') ||
-              className.includes('header') ||
-              className.includes('footer')) {
-            continue;
-          }
-
-          // 检查是否包含较长的中文内容（可能是评论文本）
-          if (/[\u4e00-\u9fa5]{10,}/.test(text) && text.length > 10 && text.length < 2000) {
-            // 排除已经是用户名或日期的元素
-            if (text !== review.user_name && text !== review.rate_time && !text.includes('年') && !text.includes('月')) {
-              review.content = text;
-              console.log(`   ✅ 智能提取到内容: "${review.content.substring(0, 50)}..."`);
-              break;
+  // ==================== 手动诊断功能 ====================
+  // 在控制台输入以下命令进行诊断：
+  // _reviewHelper.findViewAllButton() - 查找按钮
+  // _reviewHelper.testClick() - 测试点击
+  
+  try {
+    Object.defineProperty(window, '_reviewHelper', {
+      value: {
+        // 查找"查看全部评价"按钮
+        findViewAllButton: function() {
+          console.log('🔍 诊断：查找"查看全部评价"按钮...');
+          var buttons = [];
+          var allElements = document.querySelectorAll('a, button, span, div');
+          
+          for (var i = 0; i < allElements.length; i++) {
+            var el = allElements[i];
+            var text = el.textContent || '';
+            if (text.indexOf('查看全部评价') > -1 || text.indexOf('全部评价') > -1) {
+              var rect = el.getBoundingClientRect();
+              buttons.push({
+                text: text,
+                tag: el.tagName,
+                className: el.className,
+                visible: rect.width > 0 && rect.height > 0,
+                element: el
+              });
             }
           }
-        }
-      }
-
-      if (review.content || review.user_name) {
-        // 【去重】检查是否已存在相同评论
-        const isDuplicate = reviews.some(r =>
-          r.user_name === review.user_name &&
-          r.content === review.content
-        );
-
-        if (isDuplicate) {
-          console.log(`   ⚠️ 跳过重复评论: 用户=${review.user_name}`);
-        } else {
-          console.log(`   ✅ 保存评论: 用户=${review.user_name}, 内容长度=${review.content.length}`);
-          reviews.push(review);
-        }
-      } else {
-        console.log(`   ❌ 跳过此评论（无用户名和内容）`);
-      }
-    } catch (e) {
-      console.warn('⚠️ 提取评论时出错:', e);
-    }
-  });
-
-  console.log(`📊 共提取 ${reviews.length} 条评论`);
-  return reviews;
-}
-
-// 主提取函数（支持翻页抓取）
-async function extractReviews() {
-  const platform = detectPlatform();
-  console.log('🌐 当前平台:', platform);
-  console.log('🔗 当前URL:', window.location.href);
-
-  // 步骤1：在"用户评价"标签页容器内查找并点击"查看全部评价"按钮
-  console.log('🔍 步骤 1/5: 查找并点击"查看全部评价"按钮...');
-  const clicked = await clickViewAllReviewsButton();
-  if (!clicked) {
-    console.log('⚠️ 未找到或未能点击"查看全部评价"按钮，尝试直接提取...');
-  }
-
-  // 步骤2：等待评论区域加载完成
-  console.log('🔄 步骤 2/5: 等待评论区域加载...');
-  await waitForReviewsToLoad();
-
-  // 步骤3：循环翻页抓取所有评论
-  console.log('🔄 步骤 3/5: 开始循环翻页抓取评论...');
-
-  let allReviewsList = [];
-  let pageCount = 0;
-  const maxPages = 20; // 最多抓取20页，防止无限循环
-
-  while (pageCount < maxPages) {
-    pageCount++;
-    console.log(`\n📄 ========== 第 ${pageCount} 页 ==========`);
-
-    // 步骤3.1：自动滚动加载当前页面的评论
-    console.log('🔄 步骤 3.1: 自动滚动加载评论...');
-    await autoScrollToLoadMore();
-
-    // 步骤3.2：提取当前页面的评论数据
-    console.log('📊 步骤 3.2: 提取当前页面评论数据...');
-    const pageReviews = extractReviewsFromPage();
-    console.log(`📊 第 ${pageCount} 页提取了 ${pageReviews.length} 条评论`);
-
-    // 添加到总列表
-    allReviewsList = allReviewsList.concat(pageReviews);
-
-    // 步骤3.3：查找并点击"下一页"按钮
-    console.log('🔍 步骤 3.3: 查找"下一页"按钮...');
-    const hasNextPage = await clickNextPage();
-
-    if (!hasNextPage) {
-      console.log('✅ 没有下一页，抓取完成');
-      break;
-    }
-
-    // 步骤3.4：等待新页面加载
-    console.log('⏳ 步骤 3.4: 等待新页面加载...');
-    await waitForReviewsToLoad();
-  }
-
-  console.log(`\n✅ ========== 抓取完成 ==========`);
-  console.log(`📊 共抓取 ${pageCount} 页，${allReviewsList.length} 条评论`);
-
-  return {
-    success: true,
-    message: `成功提取 ${allReviewsList.length} 条评论（${pageCount} 页）`,
-    count: allReviewsList.length,
-    data: allReviewsList,
-    finished: true
-  };
-}
-
-// 等待评论区域加载完成（使用MutationObserver检测DOM变化）
-async function waitForReviewsToLoad() {
-  console.log('⏳ 开始等待评论区域加载...');
-
-  return new Promise((resolve) => {
-    let initialCount = 0;
-    let noChangeCount = 0;
-    let maxWait = 30; // 最多等待30次（每次500ms = 15秒）
-
-    const checkInterval = setInterval(() => {
-      // 尝试查找评论项
-      const reviewItems = findReviewItemsDynamically();
-      const currentCount = reviewItems.length;
-
-      console.log(`🔊 评论数检测: ${currentCount} 个`);
-
-      // 如果评论数增加了，重置计数器
-      if (currentCount > initialCount) {
-        console.log(`📈 评论数增加: ${initialCount} → ${currentCount}`);
-        initialCount = currentCount;
-        noChangeCount = 0;
-      } else {
-        noChangeCount++;
-      }
-
-      // 如果评论数稳定了（连续5次没变化），或者有评论了，停止等待
-      if ((currentCount > 0 && noChangeCount >= 5) || currentCount >= 10) {
-        console.log(`✅ 评论区域加载完成，共 ${currentCount} 条评论`);
-        clearInterval(checkInterval);
-        resolve();
-        return;
-      }
-
-      // 超时停止
-      maxWait--;
-      if (maxWait <= 0) {
-        console.log('⏰ 等待评论区域加载超时');
-        clearInterval(checkInterval);
-        resolve();
-        return;
-      }
-    }, 500); // 每500ms检查一次
-  });
-}
-
-// 查找下一页按钮
-function findNextButton() {
-  const selectors = [
-    '.next-pagination .next',
-    'a.next',
-    '.pagination-next',
-    '[data-action="nextPage"]',
-  ];
-
-  for (const selector of selectors) {
-    const btn = document.querySelector(selector);
-    if (btn) {
-      console.log(`✅ 找到下一页按钮: ${selector}`);
-      return btn;
-    }
-  }
-
-  console.log('⚠️ 未找到下一页按钮');
-  return null;
-}
-
-// 点击下一页
-function clickNextPage() {
-  const nextBtn = findNextButton();
-  if (nextBtn) {
-    console.log('📄 点击下一页...');
-    nextBtn.click();
-    return true;
-  }
-  console.log('⚠️ 未找到下一页按钮');
-  return false;
-}
-
-// 监听来自popup的消息
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  console.log('📨 收到消息:', request.action);
-
-  switch (request.action) {
-    case 'checkPage':
-      const canExtractPage = isProductPage();
-      console.log('🔍 页面检查结果:', canExtractPage);
-      sendResponse({
-        canExtract: canExtractPage,
-        platform: detectPlatform(),
-        url: window.location.href
-      });
-      break;
-
-    case 'extract':
-      if (!isExtracting) {
-        isExtracting = true;
-
-        extractReviews().then(result => {
-          allReviews = allReviews.concat(result.data);
-          reviewCount = allReviews.length;
-
-          console.log('✅ 提取完成:', result);
-
-          isExtracting = false;
-          sendResponse({
-            success: true,
-            message: '已提取所有评论',
-            count: reviewCount,
-            data: allReviews,
-            finished: true
+          
+          console.log('找到 ' + buttons.length + ' 个候选按钮:');
+          buttons.forEach(function(b, idx) {
+            console.log(idx + ':', b.text, '|', b.tag, '| 可见:', b.visible);
           });
-        }).catch(error => {
-          console.error('❌ 提取出错:', error);
-          isExtracting = false;
-          sendResponse({
-            success: false,
-            message: `提取失败: ${error.message}`,
-            count: 0
-          });
-        });
-      } else {
-        console.log('⚠️ 正在提取中，请稍候...');
+          
+          return buttons;
+        },
+        
+        // 测试点击第一个找到的按钮
+        testClick: async function() {
+          var buttons = this.findViewAllButton();
+          if (buttons.length === 0) {
+            console.log('❌ 未找到按钮');
+            return false;
+          }
+          
+          var btn = buttons[0];
+          console.log('🖱️ 准备点击:', btn.text);
+          
+          btn.element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          await new Promise(function(r) { setTimeout(r, 1000); });
+          
+          clickElement(btn.element);
+          console.log('✅ 已点击');
+          
+          await new Promise(function(r) { setTimeout(r, 5000); });
+          console.log('📊 点击后评论数:', findReviewItems().length);
+          return true;
+        },
+        
+        // 运行完整提取
+        extract: runExtract,
+        
+        // 查看状态
+        status: function() {
+          console.log('URL:', window.location.href);
+          console.log('评论数:', findReviewItems().length);
+          console.log('平台:', detectPlatform());
+        },
+        
+        // 测试提取
+        testExtract: function() {
+          var reviews = extractAll();
+          console.log('提取结果:', reviews.slice(0, 3));
+          return reviews;
+        }
+      },
+      configurable: true
+    });
+    console.log('💡 诊断工具已加载，输入 _reviewHelper.findViewAllButton() 查看按钮');
+  } catch (e) {}
+  
+  // ==================== 监听来自 popup 的消息 ====================
+  chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
+    console.log('📨 收到消息:', request.action);
+    
+    switch (request.action) {
+      case 'checkPage':
         sendResponse({
-          success: false,
-          message: '正在提取中，请稍候...'
+          canExtract: detectPlatform() !== 'unknown',
+          platform: detectPlatform(),
+          url: window.location.href
         });
-      }
-      break;
+        break;
+        
+      case 'debug':
+        var count = findReviewItems().length;
+        sendResponse({
+          platform: detectPlatform(),
+          count: count,
+          url: window.location.href
+        });
+        break;
+        
+      case 'extract':
+        runExtract().then(function(result) {
+          sendResponse(result);
+        });
+        return true; // 异步响应
+        
+      case 'scroll':
+        scrollLoad().then(function(count) {
+          sendResponse({ count: count });
+        });
+        return true;
+        
+      case 'test':
+        var reviews = extractAll();
+        sendResponse({ count: reviews.length, data: reviews.slice(0, 3) });
+        break;
+        
+      case 'getData':
+        // 返回最近一次提取的数据
+        var lastData = window._lastExtractedData || [];
+        console.log('📤 返回数据:', lastData.length, '条');
+        sendResponse({ success: true, data: lastData });
+        break;
+        
+      default:
+        sendResponse({ error: '未知操作' });
+    }
+    
+    return true;
+  });
 
-    case 'stop':
-      isExtracting = false;
-      console.log('⏸ 停止提取');
-      sendResponse({ success: true, message: '已停止' });
-      break;
-
-    case 'getData':
-      console.log('📤 获取数据:', allReviews.length, '条评论');
-      sendResponse({
-        success: true,
-        data: allReviews
-      });
-      break;
-
-    case 'updateCount':
-      reviewCount = request.count;
-      break;
-
-    default:
-      console.log('❓ 未知操作:', request.action);
-      sendResponse({ success: false, message: '未知操作' });
+  // ==================== 暴露到 window (通过 defineProperty) ====================
+  try {
+    Object.defineProperty(window, '_taobaoReviewHelper', {
+      value: {
+        debug: function() {
+          console.log('🔍 ===== 调试信息 =====');
+          console.log('URL:', window.location.href);
+          console.log('Platform:', detectPlatform());
+          var count = findReviewItems().length;
+          console.log('评论数:', count);
+          return { platform: detectPlatform(), count: count };
+        },
+        count: function() { return findReviewItems().length; },
+        scroll: scrollLoad,
+        extract: runExtract,
+        test: extractAll
+      },
+      writable: false,
+      configurable: true
+    });
+    console.log('✅ _taobaoReviewHelper 已定义 (由于 CSP，请使用此名称)');
+    console.log('💡 提示: 输入 window._taobaoReviewHelper.debug() 调试');
+  } catch (e) {
+    console.log('⚠️ 无法暴露到 window:', e.message);
   }
 
-  return true;
-});
+  console.log('✅ Content Script 初始化完成');
 
-// 页面加载完成后通知popup
-window.addEventListener('load', () => {
-  console.log('✅ 页面加载完成');
-  console.log('🌐 当前URL:', window.location.href);
-  console.log('🔍 平台:', detectPlatform());
-
-  chrome.runtime.sendMessage({
-    action: 'pageLoaded',
-    platform: detectPlatform(),
-    canExtract: isProductPage()
-  }).catch(err => {
-    console.log('⚠️ 无法发送消息到popup:', err);
-  });
-});
-
-// 页面DOM变化监听
-const observer = new MutationObserver(() => {
-  // 可以在这里添加评论动态加载的监听逻辑
-});
-
-observer.observe(document.body, {
-  childList: true,
-  subtree: true
-});
+})();
