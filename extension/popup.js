@@ -6,8 +6,20 @@ console.log('淘宝评论助手 Popup 已加载');
 let collectedReviews = [];
 let isExtracting = false;
 let currentTabId = null;
+let scrollCount = 0;
 
 const EXTRACT_TIMEOUT = 600000; // 10分钟超时（大量评论需要更长时间）
+
+// 监听来自 content script 的进度更新
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === 'progressUpdate' && isExtracting) {
+    const { scrollCount: sc, reviewCount, status } = request.data;
+    scrollCount = sc;
+    updateCount(reviewCount);
+    showStatus('success', `🔄 ${status}<br>📜 滚动 ${sc} 次 | 📊 ${reviewCount} 条评论`);
+  }
+  return true;
+});
 
 // DOM元素
 const startBtn = document.getElementById('startBtn');
@@ -90,6 +102,12 @@ startBtn.addEventListener('click', async () => {
 async function doExtract(timeoutId) {
   try {
     console.log('🚀 开始提取评论（新版：content.js 会自动处理滚动和翻页）');
+    
+    // 重置滚动计数
+    scrollCount = 0;
+    
+    // 设置进度回调
+    await chrome.tabs.sendMessage(currentTabId, { action: 'setProgressCallback' });
 
     // 向content script发送提取请求
     // content.js 的 extractReviews 函数会：
@@ -228,6 +246,25 @@ function disableAllButtons() {
 async function exportToExcel(reviews) {
   // 生成Excel文件内容（CSV格式，兼容Excel）
   const headers = ['ID', '平台', '用户昵称', '用户等级', '评论内容', '评分', '日期', 'SKU', '追加评论', '追加日期', '有图片', '商家回复'];
+  
+  // 格式化日期，确保统一为 YYYY年MM月DD日 格式
+  function formatDate(dateStr) {
+    if (!dateStr) return '';
+    // 如果已经是正确格式，直接返回
+    if (/^20\d{2}年\d{2}月\d{2}日$/.test(dateStr)) {
+      return dateStr;
+    }
+    // 尝试解析其他格式
+    const match = dateStr.match(/(20\d{2})[年\/-](\d{1,2})[月\/-](\d{1,2})/);
+    if (match) {
+      const year = match[1];
+      const month = match[2].padStart(2, '0');
+      const day = match[3].padStart(2, '0');
+      return `${year}年${month}月${day}日`;
+    }
+    return dateStr;
+  }
+  
   const rows = reviews.map(review => [
     review.id || '',
     review.platform || '',
@@ -235,10 +272,10 @@ async function exportToExcel(reviews) {
     review.user_level || '',
     review.content || '',
     review.score || 5,
-    review.rate_time || '',
+    formatDate(review.rate_time),
     review.sku || '',
     review.append_content || '',
-    review.append_time || '',
+    formatDate(review.append_time),
     review.has_image ? '是' : '否',
     review.reply_content || ''
   ]);
@@ -248,7 +285,7 @@ async function exportToExcel(reviews) {
     ...rows.map(row => row.map(cell => {
       // 处理包含逗号、引号或换行的字段
       const cellStr = String(cell);
-      if (cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n')) {
+      if (cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n') || cellStr.includes('年')) {
         return `"${cellStr.replace(/"/g, '""')}"`;
       }
       return cellStr;

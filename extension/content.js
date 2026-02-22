@@ -148,9 +148,22 @@
         var nameMatch = text.match(/([\u4e00-\u9fa5]*\*+[\u4e00-\u9fa5]*)/);
         if (nameMatch) review.user_name = nameMatch[1];
         
-        // 提取日期
-        var dateMatch = text.match(/(20[12][0-9][年\/-][01]?[0-9][月\/-][0123]?[0-9])/);
-        if (dateMatch) review.rate_time = dateMatch[1];
+        // 提取日期并统一格式为：YYYY年MM月DD日
+        var datePatterns = [
+          /(20[12][0-9]{3})[年\/-]([01]?[0-9])[月\/-]([0123]?[0-9])[日]?/,  // 2025年11月12日 或 2025/11/12 或 2025-11-12
+          /(20[12][0-9]{3})([01][0-9])([0123][0-9])/,  // 20251112
+        ];
+        
+        for (var d = 0; d < datePatterns.length; d++) {
+          var dateMatch = text.match(datePatterns[d]);
+          if (dateMatch) {
+            var year = dateMatch[1];
+            var month = dateMatch[2].padStart ? dateMatch[2].padStart(2, '0') : ('0' + dateMatch[2]).slice(-2);
+            var day = dateMatch[3].padStart ? dateMatch[3].padStart(2, '0') : ('0' + dateMatch[3]).slice(-2);
+            review.rate_time = year + '年' + month + '月' + day + '日';
+            break;
+          }
+        }
         
         // 提取内容 - 找最长的中文段落（排除日期和用户名）
         var lines = text.split(/[\n\r]+/);
@@ -478,7 +491,20 @@
     }
   }
 
-  // ==================== 滚动加载 ====================
+  // ==================== 进度回调 ====================
+  var progressCallback = null;
+  
+  function sendProgress(scrollCount, reviewCount, status) {
+    if (progressCallback) {
+      try {
+        progressCallback({
+          scrollCount: scrollCount,
+          reviewCount: reviewCount,
+          status: status || 'loading'
+        });
+      } catch (e) {}
+    }
+  }
   async function scrollLoad() {
     console.log('🔄 开始滚动加载...');
     
@@ -488,11 +514,17 @@
     var last = findReviewItems().length;
     console.log('初始评论数:', last);
     
+    // 发送初始进度
+    sendProgress(0, last, '定位到评论区');
+    
     var noChangeCount = 0;
     var consecutiveNoChange = 0;
     var lastScrollHeight = document.body.scrollHeight;
     
     for (var i = 0; i < 200; i++) {
+      // 发送进度更新
+      sendProgress(i + 1, last, '滚动加载中...');
+      
       // 滚动到评论区底部（而不是页面底部）
       var reviewItems = findReviewItems();
       if (reviewItems.length > 0) {
@@ -517,6 +549,8 @@
         noChangeCount = 0;
         consecutiveNoChange = 0;
         lastScrollHeight = currentScrollHeight;
+        // 评论增加时发送更新
+        sendProgress(i + 1, curr, '加载到新评论');
       } else {
         noChangeCount++;
         // 即使评论数没变，如果页面高度变了，说明还在加载
@@ -538,6 +572,7 @@
       if (consecutiveNoChange >= 10) {
         console.log('⏹️ 连续 ' + consecutiveNoChange + ' 次无变化，停止滚动');
         console.log('✅ 最终评论数: ' + last);
+        sendProgress(i + 1, last, '加载完成');
         break;
       }
       
@@ -546,6 +581,7 @@
         var clicked = await clickLoadMoreButton();
         if (clicked) {
           console.log('🔘 点击了加载更多按钮');
+          sendProgress(i + 1, last, '点击加载更多');
           consecutiveNoChange = 0;
           await new Promise(function(r) { setTimeout(r, 3000); });
         }
@@ -727,6 +763,21 @@
         var lastData = window._lastExtractedData || [];
         console.log('📤 返回数据:', lastData.length, '条');
         sendResponse({ success: true, data: lastData });
+        break;
+        
+      case 'setProgressCallback':
+        // 设置进度回调函数（通过消息发送）
+        console.log('✅ 进度回调已设置');
+        // 保存 sender 以便后续发送进度消息
+        progressCallback = function(data) {
+          try {
+            chrome.runtime.sendMessage({
+              action: 'progressUpdate',
+              data: data
+            });
+          } catch (e) {}
+        };
+        sendResponse({ success: true });
         break;
         
       default:
