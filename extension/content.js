@@ -508,6 +508,9 @@
   async function scrollLoad() {
     console.log('🔄 开始滚动加载...');
     
+    // 重置停止标志
+    window._shouldStopExtracting = false;
+    
     // 先定位到评论区
     await navigateToReviews();
     
@@ -522,6 +525,14 @@
     var lastScrollHeight = document.body.scrollHeight;
     
     for (var i = 0; i < 200; i++) {
+      // 检查是否收到停止指令
+      if (window._shouldStopExtracting) {
+        console.log('⏸ 收到停止指令，中断滚动');
+        sendProgress(i, last, '已停止');
+        window._shouldStopExtracting = false;
+        return last;
+      }
+      
       // 发送进度更新
       sendProgress(i + 1, last, '滚动加载中...');
       
@@ -617,12 +628,28 @@
   async function runExtract() {
     console.log('🚀 开始完整提取...');
     
+    // 重置停止标志
+    window._shouldStopExtracting = false;
+    
     // 步骤0: 确保在评论区
     await navigateToReviews();
+    
+    // 检查是否已停止
+    if (window._shouldStopExtracting) {
+      return { success: false, message: '已停止', count: 0, data: [] };
+    }
     
     // 步骤1: 滚动加载所有评论
     console.log('步骤1: 滚动加载所有评论...');
     await scrollLoad();
+    
+    // 检查是否已停止
+    if (window._shouldStopExtracting) {
+      console.log('⏸ 提取已停止');
+      var partialData = extractAll();
+      window._lastExtractedData = partialData;
+      return { success: true, message: '已停止', count: partialData.length, data: partialData };
+    }
     
     // 步骤2: 提取评论数据
     console.log('步骤2: 提取评论数据...');
@@ -778,6 +805,13 @@
           } catch (e) {}
         };
         sendResponse({ success: true });
+        break;
+        
+      case 'stop':
+        // 停止提取
+        console.log('⏸ 收到停止指令');
+        window._shouldStopExtracting = true;
+        sendResponse({ success: true, message: '已发送停止信号' });
         break;
         
       default:

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "淘宝评论助手",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "帮助提取淘宝/天猫商品评论数据",
   "permissions": [
     "activeTab",
