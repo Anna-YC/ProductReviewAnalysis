@@ -162,10 +162,31 @@ async function clickViewAllReviewsButton() {
         // 验证是否是"查看全部评价"按钮
         if (text.includes('查看') && text.includes('评价')) {
           console.log('✅ 确认是"查看全部评价"按钮，准备点击...');
+
+          // 记录点击前的URL
+          const beforeUrl = window.location.href;
+          console.log(`📍 点击前URL: ${beforeUrl}`);
+
           button.click();
           console.log('✅ 已点击"查看全部评价"按钮');
-          await new Promise(resolve => setTimeout(resolve, 3000)); // 等待内容展开
-          return true;
+
+          // 等待页面跳转或内容加载
+          await new Promise(resolve => setTimeout(resolve, 3000));
+
+          // 检测是否跳转了
+          const afterUrl = window.location.href;
+          console.log(`📍 点击后URL: ${afterUrl}`);
+
+          if (beforeUrl !== afterUrl) {
+            console.log('✅ 检测到页面已跳转，等待新页面加载...');
+            // 等待新页面完全加载
+            await new Promise(resolve => setTimeout(resolve, 5000));
+            console.log(`✅ 新页面已加载: ${window.location.href}`);
+            return true;
+          } else {
+            console.log('⚠️ 未检测到跳转，可能是同页展开');
+            return true;
+          }
         }
       }
     } catch (e) {
@@ -221,7 +242,7 @@ async function autoScrollToLoadMore() {
   lastReviewCount = countReviews();
   console.log(`📊 初始评论数: ${lastReviewCount}`);
 
-  for (let i = 0; i < 50; i++) {
+  for (let i = 0; i < 100; i++) {  // 增加到100次
     // 滚动到底部
     window.scrollTo(0, document.body.scrollHeight);
 
@@ -229,11 +250,11 @@ async function autoScrollToLoadMore() {
 
     // 每5次输出一次
     if (scrollCount % 5 === 0) {
-      console.log(`📜 滚动进度: ${scrollCount}/50`);
+      console.log(`📜 滚动进度: ${scrollCount}/100`);
     }
 
-    // 等待加载
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    // 等待加载（增加到2000ms）
+    await new Promise(resolve => setTimeout(resolve, 2000));
 
     // 检测评论数变化
     const currentReviews = countReviews();
@@ -243,7 +264,8 @@ async function autoScrollToLoadMore() {
       noChangeCount = 0;
     } else {
       noChangeCount++;
-      if (noChangeCount >= 3) {
+      // 增加容忍度到5次
+      if (noChangeCount >= 5) {
         console.log('✅ 评论数不再变化，停止滚动');
         break;
       }
@@ -596,34 +618,115 @@ function extractReviewsFromPage() {
   return reviews;
 }
 
-// 主提取函数
+// 主提取函数（支持翻页抓取）
 async function extractReviews() {
   const platform = detectPlatform();
   console.log('🌐 当前平台:', platform);
   console.log('🔗 当前URL:', window.location.href);
 
   // 步骤1：在"用户评价"标签页容器内查找并点击"查看全部评价"按钮
-  console.log('🔍 步骤 1/3: 查找并点击"查看全部评价"按钮...');
+  console.log('🔍 步骤 1/5: 查找并点击"查看全部评价"按钮...');
   const clicked = await clickViewAllReviewsButton();
   if (!clicked) {
     console.log('⚠️ 未找到或未能点击"查看全部评价"按钮，尝试直接提取...');
   }
 
-  // 步骤2：自动滚动加载
-  console.log('🔄 步骤 2/3: 自动滚动加载评论...');
-  await autoScrollToLoadMore();
+  // 步骤2：等待评论区域加载完成
+  console.log('🔄 步骤 2/5: 等待评论区域加载...');
+  await waitForReviewsToLoad();
 
-  // 步骤3：提取评论数据
-  console.log('📊 步骤 3/3: 提取评论数据...');
-  const reviews = extractReviewsFromPage();
+  // 步骤3：循环翻页抓取所有评论
+  console.log('🔄 步骤 3/5: 开始循环翻页抓取评论...');
+
+  let allReviewsList = [];
+  let pageCount = 0;
+  const maxPages = 20; // 最多抓取20页，防止无限循环
+
+  while (pageCount < maxPages) {
+    pageCount++;
+    console.log(`\n📄 ========== 第 ${pageCount} 页 ==========`);
+
+    // 步骤3.1：自动滚动加载当前页面的评论
+    console.log('🔄 步骤 3.1: 自动滚动加载评论...');
+    await autoScrollToLoadMore();
+
+    // 步骤3.2：提取当前页面的评论数据
+    console.log('📊 步骤 3.2: 提取当前页面评论数据...');
+    const pageReviews = extractReviewsFromPage();
+    console.log(`📊 第 ${pageCount} 页提取了 ${pageReviews.length} 条评论`);
+
+    // 添加到总列表
+    allReviewsList = allReviewsList.concat(pageReviews);
+
+    // 步骤3.3：查找并点击"下一页"按钮
+    console.log('🔍 步骤 3.3: 查找"下一页"按钮...');
+    const hasNextPage = await clickNextPage();
+
+    if (!hasNextPage) {
+      console.log('✅ 没有下一页，抓取完成');
+      break;
+    }
+
+    // 步骤3.4：等待新页面加载
+    console.log('⏳ 步骤 3.4: 等待新页面加载...');
+    await waitForReviewsToLoad();
+  }
+
+  console.log(`\n✅ ========== 抓取完成 ==========`);
+  console.log(`📊 共抓取 ${pageCount} 页，${allReviewsList.length} 条评论`);
 
   return {
     success: true,
-    message: `成功提取 ${reviews.length} 条评论`,
-    count: reviews.length,
-    data: reviews,
+    message: `成功提取 ${allReviewsList.length} 条评论（${pageCount} 页）`,
+    count: allReviewsList.length,
+    data: allReviewsList,
     finished: true
   };
+}
+
+// 等待评论区域加载完成（使用MutationObserver检测DOM变化）
+async function waitForReviewsToLoad() {
+  console.log('⏳ 开始等待评论区域加载...');
+
+  return new Promise((resolve) => {
+    let initialCount = 0;
+    let noChangeCount = 0;
+    let maxWait = 30; // 最多等待30次（每次500ms = 15秒）
+
+    const checkInterval = setInterval(() => {
+      // 尝试查找评论项
+      const reviewItems = findReviewItemsDynamically();
+      const currentCount = reviewItems.length;
+
+      console.log(`🔊 评论数检测: ${currentCount} 个`);
+
+      // 如果评论数增加了，重置计数器
+      if (currentCount > initialCount) {
+        console.log(`📈 评论数增加: ${initialCount} → ${currentCount}`);
+        initialCount = currentCount;
+        noChangeCount = 0;
+      } else {
+        noChangeCount++;
+      }
+
+      // 如果评论数稳定了（连续5次没变化），或者有评论了，停止等待
+      if ((currentCount > 0 && noChangeCount >= 5) || currentCount >= 10) {
+        console.log(`✅ 评论区域加载完成，共 ${currentCount} 条评论`);
+        clearInterval(checkInterval);
+        resolve();
+        return;
+      }
+
+      // 超时停止
+      maxWait--;
+      if (maxWait <= 0) {
+        console.log('⏰ 等待评论区域加载超时');
+        clearInterval(checkInterval);
+        resolve();
+        return;
+      }
+    }, 500); // 每500ms检查一次
+  });
 }
 
 // 查找下一页按钮
