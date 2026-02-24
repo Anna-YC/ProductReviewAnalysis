@@ -986,18 +986,30 @@
   }
   async function scrollLoad() {
     console.log('🔄 开始滚动加载...');
-    
+
     // 重置停止标志
     window._shouldStopExtracting = false;
-    
+
     // 先定位到评论区
     await navigateToReviews();
-    
-    var last = findReviewItems().length;
-    console.log('初始评论数:', last);
-    
-    // 发送初始进度
-    sendProgress(0, last, '定位到评论区');
+
+    // 检查是否成功跳转到用户评价页面
+    var reviewCount = findReviewItems().length;
+    var isFullPage = isFullReviewPage();
+
+    console.log('🔍 当前评论数:', reviewCount, '是否在用户评价页面:', isFullPage);
+
+    if (isFullPage && reviewCount >= 10) {
+      // 成功跳转到用户评价页面
+      console.log('✅ 成功加载评论区');
+      sendProgress(0, reviewCount, '✅ 成功加载评论区');
+    } else {
+      // 可能在详情页，继续执行
+      console.log('⚠️ 当前页面评论数较少，继续尝试加载');
+      sendProgress(0, reviewCount, '定位到评论区');
+    }
+
+    var last = reviewCount;
     
     var noChangeCount = 0;
     var consecutiveNoChange = 0;

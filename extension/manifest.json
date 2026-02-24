@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "淘宝评论助手",
-  "version": "2.7.3",
+  "version": "2.7.4",
   "description": "帮助提取淘宝/天猫商品评论数据 - 独立封装版本",
   "author": "Product Review Analysis Team",
   "homepage_url": "https://github.com/yourusername/ProductReviewAnalysis",

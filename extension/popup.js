@@ -26,7 +26,21 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     const { scrollCount: sc, reviewCount, status } = request.data;
     scrollCount = sc;
     updateCount(reviewCount);
-    showStatus('success', `🔄 ${status}<br>📜 滚动 ${sc} 次 | 📊 ${reviewCount} 条评论`);
+
+    // 根据状态显示不同的提示
+    if (status && status.includes('成功加载评论区')) {
+      // 成功加载评论区，显示明确的成功提示
+      showStatus('success', `✅ ${status}<br>📊 已定位到用户评价页面，开始抓取评论数据...`);
+    } else if (status && status.includes('定位到评论区')) {
+      // 正在定位
+      showStatus('success', `🔄 ${status}<br>⏳ 请稍候...`);
+    } else if (status && status.includes('滚动加载中')) {
+      // 正在滚动加载
+      showStatus('success', `🔄 ${status}<br>📜 滚动 ${sc} 次 | 📊 ${reviewCount} 条评论`);
+    } else {
+      // 其他状态
+      showStatus('success', `🔄 ${status}<br>📜 滚动 ${sc} 次 | 📊 ${reviewCount} 条评论`);
+    }
   }
   return true;
 });
