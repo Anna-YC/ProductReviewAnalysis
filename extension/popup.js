@@ -266,20 +266,20 @@ async function saveForAnalysis(reviews) {
   const filename = `评论数据_${timestamp}.csv`;
   
   // 生成CSV内容
-  const headers = ['ID', '平台', '用户昵称', '用户等级', '评论内容', '评分', '日期', 'SKU', '追加评论', '追加日期', '有图片', '商家回复'];
+  const headers = ['ID', '平台', '用户昵称', '购买SKU', '首评时间', '首评内容', '追评相对时间', '追评内容', '图片链接', '商家回复', '点赞数', '评分'];
   const rows = reviews.map(r => [
     r.id || '',
     r.platform || '',
     r.user_name || '',
-    r.user_level || '',
-    r.content || '',
-    r.score || 5,
+    r.purchase_sku || '',
     r.rate_time || '',
-    r.sku || '',
+    r.content || '',
+    r.append_relative_time || '',
     r.append_content || '',
-    r.append_time || '',
-    r.has_image ? '是' : '否',
-    r.reply_content || ''
+    r.images || '',
+    r.reply_content || '',
+    r.like_count || '',
+    r.score || 5
   ]);
 
   const csvContent = [
@@ -349,8 +349,8 @@ function disableAllButtons() {
 // 导出为Excel格式
 async function exportToExcel(reviews) {
   // 生成Excel文件内容（CSV格式，兼容Excel）
-  const headers = ['ID', '平台', '用户昵称', '用户等级', '评论内容', '评分', '日期', 'SKU', '追加评论', '追加日期', '有图片', '商家回复'];
-  
+  const headers = ['ID', '平台', '用户昵称', '购买SKU', '首评时间', '首评内容', '追评相对时间', '追评内容', '图片链接', '商家回复', '点赞数', '评分'];
+
   // 格式化日期，确保统一为 YYYY年MM月DD日 格式
   function formatDate(dateStr) {
     if (!dateStr) return '';
@@ -368,20 +368,20 @@ async function exportToExcel(reviews) {
     }
     return dateStr;
   }
-  
+
   const rows = reviews.map(review => [
     review.id || '',
     review.platform || '',
     review.user_name || '',
-    review.user_level || '',
-    review.content || '',
-    review.score || 5,
-    formatDate(review.rate_time),
-    review.sku || '',
-    review.append_content || '',
-    formatDate(review.append_time),
-    review.has_image ? '是' : '否',
-    review.reply_content || ''
+    review.purchase_sku || '',                      // 购买SKU
+    formatDate(review.rate_time),                    // 首评时间
+    review.content || '',                           // 纯评论内容
+    review.append_relative_time || '',              // 追评相对时间
+    review.append_content || '',                    // 追加评论
+    review.images || '',                            // 图片链接（多个用分号分隔）
+    review.reply_content || '',                     // 商家回复
+    review.like_count || '',                        // 点赞数
+    review.score || 5                               // 评分
   ]);
 
   const csvContent = [
