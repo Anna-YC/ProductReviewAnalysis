@@ -1,14 +1,24 @@
 // 淘宝评论助手 - Popup交互脚本
+// 独立封装版本 v2.0.0
 
 console.log('淘宝评论助手 Popup 已加载');
 
-// 全局变量
+// ==================== 配置加载 ====================
+// 使用配置文件中的值，如果配置不存在则使用默认值
+const CONFIG = window.REVIEW_HELPER_CONFIG || {
+  EXTRACTION_TIMEOUT: 600000,
+  FILE_PREFIX: '评论数据',
+  CSV_ADD_BOM: true,
+  DATE_FORMAT: 'YYYY年MM月DD日',
+  PROGRESS_BASE: 100,
+  DEBUG_MODE: false
+};
+
+// ==================== 全局变量 ====================
 let collectedReviews = [];
 let isExtracting = false;
 let currentTabId = null;
 let scrollCount = 0;
-
-const EXTRACT_TIMEOUT = 600000; // 10分钟超时（大量评论需要更长时间）
 
 // 监听来自 content script 的进度更新
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -25,6 +35,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 const startBtn = document.getElementById('startBtn');
 const stopBtn = document.getElementById('stopBtn');
 const exportBtn = document.getElementById('exportBtn');
+const analyzeBtn = document.getElementById('analyzeBtn');
+const analyzeTip = document.getElementById('analyzeTip');
 const statusDiv = document.getElementById('status');
 const progressDiv = document.getElementById('progress');
 const progressFill = document.getElementById('progressFill');
@@ -78,22 +90,24 @@ startBtn.addEventListener('click', async () => {
 
   // 重置状态
   collectedReviews = [];
+  analyzeTip.style.display = 'none';
 
   // 更新UI状态
   isExtracting = true;
   startBtn.style.display = 'none';
   stopBtn.style.display = 'block';
   exportBtn.disabled = true;
+  analyzeBtn.disabled = true;
   progressDiv.classList.add('active');
   showStatus('success', '🚀 开始提取评论...<br>⏳ 正在定位到评论区，请稍候...');
 
-  // 设置超时检测（增加到10分钟，因为大量评论需要更长时间）
+  // 设置超时检测（使用配置文件中的超时时间）
   const timeoutId = setTimeout(() => {
     if (isExtracting) {
       console.error('⏰ 提取超时');
       stopExtraction('提取超时，可能是评论数量太多或页面加载缓慢');
     }
-  }, 600000); // 10分钟
+  }, CONFIG.EXTRACTION_TIMEOUT);
 
   await doExtract(timeoutId);
 });
@@ -152,6 +166,7 @@ function stopExtraction(message, finalCount = null, isSuccess = false) {
   if (isSuccess && finalCount !== null) {
     showStatus('success', `✅ 提取完成！共 ${finalCount} 条评论`);
     exportBtn.disabled = false;
+    analyzeBtn.disabled = false;
   } else {
     showStatus('error', message || '❌ 提取失败');
   }
@@ -207,6 +222,94 @@ exportBtn.addEventListener('click', async () => {
   }
 });
 
+// 一键分析按钮
+analyzeBtn.addEventListener('click', async () => {
+  console.log('点击分析按钮');
+
+  try {
+    // 获取所有已收集的数据
+    await fetchCollectedData();
+
+    if (collectedReviews.length === 0) {
+      showStatus('error', '没有可分析的数据，请先爬取评论');
+      return;
+    }
+
+    showStatus('success', `正在准备分析 ${collectedReviews.length} 条评论...`);
+
+    // 保存到项目目录
+    const savedPath = await saveForAnalysis(collectedReviews);
+    
+    showStatus('success', `✅ 数据已保存！<br>📁 ${savedPath}`);
+    
+    // 显示分析提示
+    analyzeTip.style.display = 'block';
+    analyzeTip.innerHTML = `
+      <strong>✅ 数据已保存！</strong><br>
+      文件: ${savedPath}<br><br>
+      <strong>下一步：</strong><br>
+      1. 打开终端<br>
+      2. 运行以下命令：<br>
+      <code style="background: #fff; padding: 2px 4px; border-radius: 3px; display: inline-block; margin-top: 5px;">python3 analyze_reviews.py "${savedPath}"</code>
+    `;
+  } catch (error) {
+    console.error('准备分析失败:', error);
+    showStatus('error', `❌ 准备分析失败：${error.message}`);
+  }
+});
+
+// 保存数据用于分析
+async function saveForAnalysis(reviews) {
+  // 生成文件名
+  const now = new Date();
+  const timestamp = now.toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const filename = `评论数据_${timestamp}.csv`;
+  
+  // 生成CSV内容
+  const headers = ['ID', '平台', '用户昵称', '用户等级', '评论内容', '评分', '日期', 'SKU', '追加评论', '追加日期', '有图片', '商家回复'];
+  const rows = reviews.map(r => [
+    r.id || '',
+    r.platform || '',
+    r.user_name || '',
+    r.user_level || '',
+    r.content || '',
+    r.score || 5,
+    r.rate_time || '',
+    r.sku || '',
+    r.append_content || '',
+    r.append_time || '',
+    r.has_image ? '是' : '否',
+    r.reply_content || ''
+  ]);
+
+  const csvContent = [
+    headers.join(','),
+    ...rows.map(row => row.map(cell => {
+      const cellStr = String(cell);
+      if (cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n') || cellStr.includes('年')) {
+        return `"${cellStr.replace(/"/g, '""')}"`;
+      }
+      return cellStr;
+    }).join(','))
+  ].join('\n');
+
+  // 添加BOM
+  const BOM = '\uFEFF';
+  const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
+  
+  // 下载文件
+  const url = URL.createObjectURL(blob);
+  const downloadId = await chrome.downloads.download({
+    url: url,
+    filename: `ProductReviewAnalysis/output/crawler/${filename}`,
+    saveAs: false
+  });
+  
+  URL.revokeObjectURL(url);
+  
+  return `output/crawler/${filename}`;
+}
+
 // 获取已收集的数据
 async function fetchCollectedData() {
   try {
@@ -225,8 +328,8 @@ async function fetchCollectedData() {
 // 更新计数显示
 function updateCount(count) {
   countSpan.textContent = count;
-  // 更新进度条（假设目标100条）
-  const percent = Math.min((count / 100) * 100, 100);
+  // 更新进度条（使用配置文件中的基准值）
+  const percent = Math.min((count / CONFIG.PROGRESS_BASE) * 100, 100);
   progressFill.style.width = `${percent}%`;
 }
 
@@ -240,6 +343,7 @@ function showStatus(type, message) {
 function disableAllButtons() {
   startBtn.disabled = true;
   exportBtn.disabled = true;
+  analyzeBtn.disabled = true;
 }
 
 // 导出为Excel格式

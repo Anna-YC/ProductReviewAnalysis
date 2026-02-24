@@ -1,8 +1,10 @@
 {
   "manifest_version": 3,
   "name": "淘宝评论助手",
-  "version": "1.0.7",
-  "description": "帮助提取淘宝/天猫商品评论数据",
+  "version": "2.0.0",
+  "description": "帮助提取淘宝/天猫商品评论数据 - 独立封装版本",
+  "author": "Product Review Analysis Team",
+  "homepage_url": "https://github.com/yourusername/ProductReviewAnalysis",
   "permissions": [
     "activeTab",
     "downloads",
@@ -23,14 +25,14 @@
         "https://*.taobao.com/*",
         "https://*.tmall.com/*"
       ],
-      "js": ["content.js"],
+      "js": ["config.js", "content.js"],
       "run_at": "document_start",
       "all_frames": false
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["*.js"],
+      "resources": ["*.js", "*.css"],
       "matches": ["https://*.taobao.com/*", "https://*.tmall.com/*"]
     }
   ]

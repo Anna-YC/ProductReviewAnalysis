@@ -2,108 +2,9 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <style>
-    body {
-      width: 400px;
-      padding: 20px;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    }
-    .header {
-      text-align: center;
-      margin-bottom: 20px;
-    }
-    .header h2 {
-      margin: 0;
-      color: #ff5000;
-    }
-    .status {
-      padding: 15px;
-      background: #f5f5f5;
-      border-radius: 8px;
-      margin-bottom: 20px;
-    }
-    .status.error {
-      background: #fee;
-      color: #c00;
-    }
-    .status.success {
-      background: #efe;
-      color: #090;
-    }
-    .button {
-      width: 100%;
-      padding: 12px;
-      margin: 8px 0;
-      border: none;
-      border-radius: 6px;
-      font-size: 14px;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-    .button-primary {
-      background: #ff5000;
-      color: white;
-    }
-    .button-primary:hover {
-      background: #e6400;
-    }
-    .button-secondary {
-      background: #f0f0f0;
-      color: #333;
-      border: 1px solid #ddd;
-    }
-    .button-secondary:hover {
-      background: #e0e0e0;
-    }
-    .button:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-    .progress {
-      margin: 15px 0;
-      padding: 10px;
-      background: #f0f0f0;
-      border-radius: 6px;
-      display: none;
-    }
-    .progress.active {
-      display: block;
-    }
-    .progress-bar {
-      height: 8px;
-      background: #e0e0e0;
-      border-radius: 4px;
-      overflow: hidden;
-    }
-    .progress-fill {
-      height: 100%;
-      background: #ff5000;
-      width: 0%;
-      transition: width 0.3s;
-    }
-    .count {
-      text-align: center;
-      margin-top: 10px;
-      font-size: 14px;
-      color: #666;
-    }
-    .footer {
-      text-align: center;
-      margin-top: 20px;
-      font-size: 12px;
-      color: #999;
-    }
-    .instructions {
-      font-size: 13px;
-      line-height: 1.6;
-      color: #666;
-      margin-bottom: 15px;
-    }
-    .instructions ol {
-      margin: 0;
-      padding-left: 20px;
-    }
-  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>淘宝评论助手</title>
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <div class="header">
@@ -135,6 +36,16 @@
     📥 导出数据
   </button>
 
+  <button id="analyzeBtn" class="button button-success" disabled>
+    📊 一键分析（生成报告）
+  </button>
+
+  <div id="analyzeTip" class="tip tip-success" style="display:none;">
+    <strong>✅ 数据已保存！</strong><br>
+    请运行以下命令生成报告：<br>
+    <code>python3 analyze_reviews.py output/crawler/评论数据_*.csv</code>
+  </div>
+
   <div id="progress" class="progress">
     <div class="progress-bar">
       <div id="progressFill" class="progress-fill"></div>
@@ -147,8 +58,10 @@
   <div class="footer">
     <p>数据会自动保存为Excel/CSV格式</p>
     <p>支持淘宝和天猫平台</p>
+    <p class="mt-1">版本 2.0.0 - 独立封装版</p>
   </div>
 
+  <script src="config.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

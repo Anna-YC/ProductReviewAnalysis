@@ -1,0 +1,31 @@
+{
+  "name": "taobao-review-helper",
+  "version": "1.1.0",
+  "description": "淘宝评论抓取助手 - Chrome浏览器插件",
+  "main": "popup.js",
+  "scripts": {
+    "build": "node build.js",
+    "zip": "node build.js --zip",
+    "clean": "node build.js --clean"
+  },
+  "keywords": [
+    "taobao",
+    "tmall",
+    "review",
+    "crawler",
+    "chrome-extension"
+  ],
+  "author": "Product Review Analysis Team",
+  "license": "MIT",
+  "devDependencies": {
+    "archiver": "^6.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/ProductReviewAnalysis.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/ProductReviewAnalysis/issues"
+  },
+  "homepage": "https://github.com/yourusername/ProductReviewAnalysis/tree/main/extension"
+}

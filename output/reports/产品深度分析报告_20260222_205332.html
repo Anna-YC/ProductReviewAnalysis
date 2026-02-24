@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎯 产品评价深度分析报告</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: #fff;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+        
+        .header .meta {
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+        
+        .stats-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            padding: 30px;
+            background: #f8f9fa;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            transition: transform 0.3s;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .stat-card .number {
+            font-size: 2.5em;
+            font-weight: 700;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+        
+        .stat-card .label {
+            color: #666;
+            font-size: 0.95em;
+        }
+        
+        .content {
+            padding: 40px;
+        }
+        
+        .section {
+            margin-bottom: 40px;
+        }
+        
+        .section-title {
+            font-size: 1.8em;
+            color: #333;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #667eea;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .section-title::before {
+            content: '';
+            width: 6px;
+            height: 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 3px;
+        }
+        
+        .opportunity-card {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+            border-left: 5px solid #667eea;
+        }
+        
+        .opportunity-card h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+        
+        .opportunity-card .level {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+        
+        .level-high {
+            background: #ff6b6b;
+            color: white;
+        }
+        
+        .level-medium {
+            background: #feca57;
+            color: #333;
+        }
+        
+        .level-low {
+            background: #48dbfb;
+            color: white;
+        }
+        
+        .chart-container {
+            height: 400px;
+            margin: 30px 0;
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 20px;
+        }
+        
+        .quote-box {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px 20px;
+            margin: 10px 0;
+            border-radius: 0 8px 8px 0;
+            font-style: italic;
+            color: #856404;
+        }
+        
+        .tag {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 15px;
+            font-size: 0.85em;
+            margin: 3px;
+        }
+        
+        .tag-positive {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .tag-negative {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .tag-neutral {
+            background: #e2e3e5;
+            color: #383d41;
+        }
+        
+        .footer {
+            background: #f8f9fa;
+            padding: 30px;
+            text-align: center;
+            color: #666;
+            border-top: 1px solid #dee2e6;
+        }
+        
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.8em;
+            }
+            .content {
+                padding: 20px;
+            }
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        
+        .keywords-cloud {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 15px;
+            justify-content: center;
+        }
+        
+        .keyword-item {
+            padding: 8px 16px;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            transition: all 0.3s;
+        }
+        
+        .keyword-item:hover {
+            transform: scale(1.1);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+        }
+        
+        .trend-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-weight: 600;
+        }
+        
+        .trend-up {
+            color: #28a745;
+        }
+        
+        .trend-down {
+            color: #dc3545;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>📊 产品评价深度分析报告</h1>
+            <div class="meta">分析样本: 1019 条 | 平均评分: 5.0</div>
+        </header>
+        
+        <div class="stats-cards">
+            <div class="stat-card">
+                <div class="number">1019</div>
+                <div class="label">分析样本</div>
+            </div>
+            <div class="stat-card">
+                <div class="number">5.0</div>
+                <div class="label">平均评分</div>
+            </div>
+            <div class="stat-card">
+                <div class="number">0</div>
+                <div class="label">机会点</div>
+            </div>
+            <div class="stat-card">
+                <div class="number">0</div>
+                <div class="label">改进建议</div>
+            </div>
+        </div>
+        
+        <div class="content">
+            
+        <div class="section">
+            <h2 class="section-title">一、🎯 竞品差异化机会</h2>
+            <p>
+#</p>
+        </div>
+        
+
+        <div class="section">
+            <h2 class="section-title">1. 吸烟效果 - ⚡ 中等机会</h2>
+            <p>
+<strong>用户痛点</strong>: </p><p><strong>差异化策略</strong>: 展示大风量参数，使用吸烟效果对比图/视频</p><p><strong>样本支持</strong>: 8条负面评价 条</p><p>---</p>
+        </div>
+        
+
+        <div class="section">
+            <h2 class="section-title">二、🔧 产品迭代机会</h2>
+            <p>
+#</p>
+        </div>
+        
+
+        <div class="section">
+            <h2 class="section-title">1. 噪音问题 - 🔴 高优先级</h2>
+            <p>
+<strong>影响用户</strong>: 59条反馈</p><p><strong>用户原话</strong>:
+> 柠**02026年1月12日已购：JPCD12E-NJ01S 14套 黑色 热销款/咨询享8折012服务特别好，测量的师傅也很到位，洗碗机洗的很干净，解放双手，...
+> 不**)2026年2月9日已购：JPCD6E-02-B-NF1 14套 白色 咨询享85折00声音大小：声音不算大，还能接受 清洗容量： 一家三口两餐的碗清洗空...
+> 匿名买家2026年2月3日已购：JPCD6E-02-B-NF1 14套 白色 咨询0元免费测量04声音大小：声音不会太大，还不错。 清洗容量：非常适合小家庭使用...</p><p><strong>改进建议</strong>: 优化风道设计，提升静音技术，增加变频调速</p><p>---</p><p>#</p>
+        </div>
+        
+
+        <div class="section">
+            <h2 class="section-title">2. 安装问题 - 🟡 中优先级</h2>
+            <p>
+<strong>影响用户</strong>: 4条反馈</p><p><strong>用户原话</strong>:
+> 猩**红2025年12月7日已购：JPCD12E-NJ01S 14套 黑色 热销款/咨询享8折00黑色真的好看 客服小姐姐态度好 本来以为装不上的 后面经过改造...
+> 甜**y2025年10月19日已购：JPCD6E-02-B-NF1 14套 白色 白色款/咨询享8折02我终于有了洗碗机，安装师傅特别好，还给我改了橱柜，而且竟...
+> 就**菜2025年2月21日已购：JPCD12E-NJ01S 13套 黑色 咨询送洗碗套装017送货快！安装快！买了还没有发货，已经可以提早预约师傅过来看看安装...</p><p><strong>改进建议</strong>: 提供免费安装，优化尺寸适配说明，增加安装视频教程</p><p>---</p><p>#</p>
+        </div>
+        
+
+        <div class="section">
+            <h2 class="section-title">3. 吸力问题 - 🟡 中优先级</h2>
+            <p>
+<strong>影响用户</strong>: 8条反馈</p><p><strong>用户原话</strong>:
+> 匿名买家2026年1月30日已购：JPCD12E-NJ01S 14套 黑色 咨询享85折04师傅安装的非常好，柜子改装之后就像是定制的，机子已经开始用了，解放双...
+> 匿名买家2025年11月14日已购：JPCD6E-02-B-NF1 14套 白色 白色款/咨询享8折011新房装修，厨房都买了方太电器，抽油烟机，燃气灶，燃气热...
+> t**32025年11月1日已购：JPCD12E-NJ01S 14套 黑色 热销款/咨询享8折018方太的燃气灶和油烟机有名，没想到洗碗机也做的这么惊艳，装上的...</p><p><strong>改进建议</strong>: 提升电机功率，优化风道设计，增加变频增压功能</p><p>---</p><p>#</p>
+        </div>
+        
+
+        <div class="section">
+            <h2 class="section-title">4. 材质问题 - 🟡 中优先级</h2>
+            <p>
+<strong>影响用户</strong>: 10条反馈</p><p><strong>用户原话</strong>:
+> 爱**琴2026年2月11日已购：JPCD12E-NJ01S 14套 黑色 咨询享85折05我的厨房用了近20年了，一直想装一个洗碗机，无奈厨房小，没地方安装。...
+> 匿名买家2025年11月10日已购：JPCD12E-NJ01S 14套 黑色 热销款/咨询享8折04终于装上了，跟之前的大消毒柜无缝衔接，够大，一家四口平时用，...
+> 匿名买家2025年11月8日已购：JPCD12E-NJ01S 14套 黑色 热销款/咨询享8折06很静音，服务很好，不会的问销售都会马上解答，大品牌希望不会失望...</p><p><strong>改进建议</strong>: 提升材质等级，加强品控，增加质感细节</p><p>---</p>
+        </div>
+        
+
+        <div class="section">
+            <h2 class="section-title">三、💖 用户赞誉亮点</h2>
+            <p>
+1. 匿名买家2026年2月14日已购：JPCD12E-NJ01S 14套 黑色 咨询享85折03容量很大，并且尺寸刚刚好，把旧的消毒柜拆了刚好放下，严丝合缝，洗的干干净净，杯子拿出来热热的，透亮，锅盖都洗的干干净净清洁很好商家回复：每一份喜爱，都是来自心灵深处的感动和微笑，能让您满意，是我们的心愿，也是我们的追求~祝您生活愉快，事事顺利！
+2. 用**32026年1月31日已购：JPCD12E-NJ01S 14套 黑色 咨询享85折04外观设计好看，内里空间比较大，放碗筷架实净，好用，按键操作简单方便，价格实惠亲民！超值，这样的洗碗机值得拥有！  声音大小：小 清洗容量：大  其他特色：外观设计好看，内里空间比较大，放碗筷架实净，好用，按键操作简单方便！商家回复：感谢您在百忙之中，给我们做出的评价。所有值得一做的事情都要去做好，当然，任何事情都不如我们的产品使您快乐更值得做好。希望您永远记得有我们伴在您的身边，我们时刻准备着再次为您服务！更多
+3. 3**s2026年2月6日已购：JPCD12E-NJ01S 14套 黑色 咨询享85折06给家里人买的洗碗机，是老房加装，安排工人提前上门勘测，非常方便，也没有任何加收费用，非常好。清洁很好商家回复：让我们在尘世中携手，共享这份无拘无束的自由~~我们的快乐和满足来自于创造出更贴合您心意的宝贝，而最宝贵的，莫过于赢得了您的赞誉和支持！(✧◡✧)更多
+4. k**32026年2月9日已购：JPCD12E-NJ01S 14套 黑色 咨询享85折04非常好，师傅上门费用都能核销，给了很多优惠，客服很近很快，讲解清楚，厨房一直用这个牌子，老牌子值得信懒，赞👍商家回复：想把感谢写满大地，一棵树就是一个字，一写就是一辈子，只为感谢太粉您一如既往的支持。
+5. 匿名买家2026年2月5日已购：JPCD12E-NJ01S 14套 黑色 咨询享85折05顽固油污全搞定，烘干无异味，容量够用安装快，厨房必备好物超满意，方太品牌值得信赖商家回复：甜言蜜语比不上太粉使用满意。每一次的突破，都是用心的成果；每一个肯定的声音，都温暖了我们的内心，有了您的支持与肯定，相信方太的明天会更好。非常感谢您给我们的支持和关注，感恩同行，以后我们的故事会更加精彩~更多
+6. 秋**灞2026年1月28日已购：JPCD12E-NJ01S 14套 黑色 咨询享85折04绝对是最值得入手的厨房神器！以前饭后面对油腻碗盘总要纠结半天，现在全部交给它，玻璃杯洗得锃亮如新，连锅底顽固油渍都能搞定。解放双手的同时高温除菌更安心，节水效果也比手洗强太多。自从有了它，家庭矛盾都少了，每天多出半小时追剧时光，生活幸福感直线飙升！强烈推荐给每一个热爱生活的家庭！商家回复：将清晨腾起的清寥薄雾，黄昏泄出的璀璨霞光，都藏进心里，待风足够温柔，云足够柔软，您刚好来，便将所有给您。愿您拥一份从容心情，赏一路美好风景！更多
+7. 空**y2026年1月23日已购：JPCD12E-NJ01S 14套 黑色 咨询享85折04一直关注了方太洗碗机，大品牌放心，物流快，安装师傅做事干净利索，很好沟通，洗碗机颜值高，使用方便，有需要的朋友不要错过哦商家回复：亲爱的太粉~您的认可与喜爱就像是泉水一样滋润我们的心田，我们十分高兴获得您的青睐。希望今后方太的各个系列的产品都能持续不断地为您带来惊喜。我们期待您的下次光临。方太祝您生活愉快！更多
+8. 匿名买家2026年1月23日已购：JPCD12E-NJ01S 14套 黑色 咨询享85折04挺好的，线上客服跟线下师傅安装都很满意，服务周到，今天安装完，试洗了下，满意商家回复：我们的相遇一定是最好的安排~在未来的日子里，方小太陪伴这您，见证您幸福的每一天~也记得把我们的产品推荐给更多的朋友哦~更多
+9. 躲**菇2026年1月22日已购：JPCD12E-NJ01S 14套 黑色 咨询0元免费测量04这次购物经历让我这个挑剔的人都心满意足。宣传描述丝毫没有夸张，配货速度也超快，客服也十分热心，让人感到无比满意。商家回复：很荣幸您选择了方太，愿陪您开心度过每一天~您的句句认可和肯定，真实的话语，让我们不由间又多了一份信心，我们会不忘初心，做到更好。我们成长的路上有风有雨，有阳光也有欢笑，最不能缺少的，就是您的支持和鼓励！更多
+10. 沈**金2026年2月9日已购：JPCD12E-NJ01S 14套 黑色 咨询享85折05方太洗碗机，师傅安装很用心，清洁效果很好，值得购买！商家回复：金杯银杯不如用户的口碑，品质决定口碑。感谢您对我们的支持跟信赖，方小太致力于向消费者提供性能卓越和高品质的产品，再微小的创新，都要倾尽全力。我们会不断的努力，争取给您更多更好的产品和服务~使用中有任何需要，欢迎您随时联系我们，我们随时准备着为您服务！更多</p><p>---</p>
+        </div>
+        
+
+        <div class="section">
+            <h2 class="section-title">四、😞 用户痛点反馈</h2>
+            <p>
+1. 匿名买家2026-02-14已购：JPCD12E-NJ01S 14套 黑色 咨询享85折容量很大，并且尺寸刚刚好，把旧的消毒柜拆了刚好放下，严丝合缝，洗的干干净净，杯子拿出来热热的，透亮，锅盖都洗的干干净净
+2. 匿名买家2026年2月17日已购：JPCD12E-NJ01S 14套 黑色 咨询享85折01这个尺寸适用于替换消毒柜。可以先预约量尺寸，如果合适就可以安排发货安装了。很方便。洗碗机空间大小都是合适的，洗的也很干净，1小时20分钟的日常洗，洗完并且高温消毒了。非常不错！商家回复：谢谢太粉光临，您的满意，请帮我们告诉别人哦~让我们传递快乐~；如果有疑问请联系我们，期待您的下次光临！祝您生活愉快!
+3. 用**02026年2月10日已购：JPCD12E-NJ01S 14套 黑色 咨询享85折04精装房把消毒柜改成了洗碗机 先免费上门查看出方案 合适再送货安装 已经通过感觉不错 商家回复：看到这条评论的时候我就在想您是怎样的存在：天边的霞光吞吐，脚畔的蔷薇含羞，牛奶味的雾气升腾，于是我的眼里有了清晨的露珠，而脸颊是三月的桃花更多
+4. 匿名买家2026年1月22日已购：JPCD12E-NJ01S 14套 黑色 咨询0元免费测量04家人们!我忏悔!为什么没早点把洗碗机请回家，它简直是家庭幸福感的超强粘合剂! 洗碗机真的不鸡肋!拥有它，生活的幸福感瞬间翻倍，爸妈来了都追着夸! 以前饭后看着油腻碗筷就头疼，现在 悠闲生活轻松拿捏!商家回复：感谢选择我们方太产品！我们会加倍努力，让每位顾客买的开心，用的放心，生活有了它而更加的舒心(p≧w≦q)
+5. 日**尔2026年1月5日已购：JPCD12E-NJ01S 14套 黑色 咨询0元免费测量119原来的方太消毒柜，换成方太洗碗机。一些小改动就可以了，进水管、下水管接一下也挺方便。可以解放双手，避免扯皮谁洗碗的事情了，太棒了👍商家回复：感谢选择我们方太产品！我们会加倍努力，让每位顾客买的开心，用的放心，生活有了它而更加的舒心(p≧w≦q)
+6. 匿名买家2026年2月15日已购：JPCD6E-02-B-NF1 14套 白色 咨询享85折00洗碗机装上了很漂亮，师傅人也很不错，放假时间加班安装。洗碗机三通要40元，建议大家提前自己买。商家回复：尊敬的太粉您好，抱歉给您的这次购物留下小小的遗憾，下次我们会做得更好。您后续有任何问题都可以联系我们在线客服解决哦。祝您生活愉快！更多
+7. 匿名买家2026年2月9日已购：JPCD12E-NJ01S 14套 黑色 咨询享85折05安装的正正好，非常漂亮的一个洗碗机，客服服务态度很好，一步一步教我怎么操作，以后可以解放双手喽商家回复：您满意的话语是风的清凉慰藉，是诗的最佳韵脚。我说，瀚海可尽，明月可掬，倒也落不得太多自句，只为您生眉目清举，岁岁落暮，暮坠轮轮，暮暮即慕慕。更多
+8. 匿名买家2026年1月30日已购：JPCD12E-NJ01S 14套 黑色 咨询享85折04师傅安装的非常好，柜子改装之后就像是定制的，机子已经开始用了，解放双手的感觉太好了！真后悔没早点买，洗的很干净、非常好用！以后肯定是离不开了，家里的油烟机也是方太家的，从售前 安装 到售后都体验感很不错！商家回复：尊敬的太粉大人，非常荣幸您能与我们分享您的喜悦。诚邀您关注方太店铺以获取最新的商品以及活动资讯，我们期盼再次为您提供优质的商品和服务，祝您生活愉快！更多
+9. 柠**02026年1月12日已购：JPCD12E-NJ01S 14套 黑色 热销款/咨询享8折012服务特别好，测量的师傅也很到位，洗碗机洗的很干净，解放双手，太爱了😍…… 声音大小：不大，商家回复：感谢太粉对我们的认可~好的产品，好的服务是赢得客户尊敬的基础，但我们不会仅仅满足于此。感谢您对我们师傅的肯定，相信师傅也会不断的提高技能，为您带去更优质的服务。更多
+10. S**n2026年1月12日已购：JPCD12E-NJ01S 14套 黑色 咨询0元免费测量014这台洗碗机容量很大一次能洗全家的碗，洗得特别干净连油渍都搞定。安装师傅很细致，家里老人试了几次就完全会用了，强烈推荐！商家回复：感谢太粉对我们的认可~好的产品，好的服务是赢得客户尊敬的基础，但我们不会仅仅满足于此。感谢您对我们师傅的肯定，相信师傅也会不断的提高技能，为您带去更优质的服务。更多</p>
+        </div>
+        
+        </div>
+        
+        <footer class="footer">
+            <p>Generated by 淘宝评论助手 AI 分析系统</p>
+            <p>2026-02-22 22:48:48</p>
+        </footer>
+    </div>
+    
+    <script>
+        // 暂无图表数据
+    </script>
+</body>
+</html>
