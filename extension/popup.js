@@ -20,8 +20,14 @@ let isExtracting = false;
 let currentTabId = null;
 let scrollCount = 0;
 
+// 问大家相关变量
+let collectedQaData = [];
+let isExtractingQa = false;
+let qaScrollCount = 0;
+
 // 监听来自 content script 的进度更新
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  // 评论提取进度更新
   if (request.action === 'progressUpdate' && isExtracting) {
     const { scrollCount: sc, reviewCount, status } = request.data;
     scrollCount = sc;
@@ -29,19 +35,31 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
     // 根据状态显示不同的提示
     if (status && status.includes('成功加载评论区')) {
-      // 成功加载评论区，显示明确的成功提示
       showStatus('success', `✅ ${status}<br>📊 已定位到用户评价页面，开始抓取评论数据...`);
     } else if (status && status.includes('定位到评论区')) {
-      // 正在定位
       showStatus('success', `🔄 ${status}<br>⏳ 请稍候...`);
     } else if (status && status.includes('滚动加载中')) {
-      // 正在滚动加载
       showStatus('success', `🔄 ${status}<br>📜 滚动 ${sc} 次 | 📊 ${reviewCount} 条评论`);
     } else {
-      // 其他状态
       showStatus('success', `🔄 ${status}<br>📜 滚动 ${sc} 次 | 📊 ${reviewCount} 条评论`);
     }
   }
+
+  // 问大家提取进度更新
+  if (request.action === 'qaProgressUpdate' && isExtractingQa) {
+    const { scrollCount: sc, qaCount, status } = request.data;
+    qaScrollCount = sc;
+    updateCount(qaCount);
+
+    if (status && status.includes('成功加载问大家页面')) {
+      showStatus('success', `✅ ${status}<br>📊 开始抓取问答数据...`);
+    } else if (status && status.includes('滚动加载中')) {
+      showStatus('success', `🔄 ${status}<br>📜 滚动 ${sc} 次 | 📊 ${qaCount} 个回答`);
+    } else {
+      showStatus('success', `🔄 ${status}<br>📜 滚动 ${sc} 次 | 📊 ${qaCount} 个回答`);
+    }
+  }
+
   return true;
 });
 
@@ -55,6 +73,11 @@ const statusDiv = document.getElementById('status');
 const progressDiv = document.getElementById('progress');
 const progressFill = document.getElementById('progressFill');
 const countSpan = document.getElementById('count');
+
+// 问大家DOM元素
+const startQaBtn = document.getElementById('startQaBtn');
+const stopQaBtn = document.getElementById('stopQaBtn');
+const exportQaBtn = document.getElementById('exportQaBtn');
 
 // 初始化：检查当前页面
 document.addEventListener('DOMContentLoaded', async () => {
@@ -73,7 +96,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 检查是否在支持的页面
   const canExtract = await checkCanExtract(tab);
   if (!canExtract) {
-    showStatus('error', '请在淘宝或天猫的商品详情页使用');
+    showStatus('error', '请在淘宝/天猫/天猫国际的商品详情页使用');
     disableAllButtons();
   } else {
     showStatus('success', `已连接到商品页面`);
@@ -435,4 +458,205 @@ async function exportToExcel(reviews) {
 function startClick() {
   // 触发开始按钮的点击
   startBtn.click();
+}
+
+// ==================== 问大家功能 ====================
+
+// 开始提取问答按钮
+startQaBtn.addEventListener('click', async () => {
+  console.log('点击开始提取问答');
+
+  if (isExtractingQa) {
+    showStatus('error', '正在提取中，请稍候...');
+    return;
+  }
+
+  // 重置状态
+  collectedQaData = [];
+  analyzeTip.style.display = 'none';
+
+  // 更新UI状态
+  isExtractingQa = true;
+  startQaBtn.style.display = 'none';
+  stopQaBtn.style.display = 'block';
+  exportQaBtn.disabled = true;
+  progressDiv.classList.add('active');
+  showStatus('success', '🚀 开始提取问答...<br>⏳ 正在定位到问大家页面，请稍候...');
+
+  // 设置超时检测
+  const timeoutId = setTimeout(() => {
+    if (isExtractingQa) {
+      console.error('⏰ 提取超时');
+      stopQaExtraction('提取超时，可能是问答数量太多或页面加载缓慢');
+    }
+  }, CONFIG.EXTRACTION_TIMEOUT);
+
+  await doExtractQa(timeoutId);
+});
+
+// 执行问答提取
+async function doExtractQa(timeoutId) {
+  try {
+    console.log('🚀 开始提取问答');
+
+    // 重置滚动计数
+    qaScrollCount = 0;
+
+    // 设置进度回调
+    await chrome.tabs.sendMessage(currentTabId, { action: 'setQaProgressCallback' });
+
+    // 向content script发送提取问答请求
+    const response = await chrome.tabs.sendMessage(currentTabId, { action: 'extractQa' });
+    console.log('extractQa 响应:', response);
+
+    if (response && response.success) {
+      collectedQaData = response.data || [];
+      console.log('✅ 已保存 ' + collectedQaData.length + ' 个回答到内存');
+
+      updateCount(response.count);
+      clearTimeout(timeoutId);
+
+      if (response.count === 0) {
+        stopQaExtraction('未找到问答，请确保：<br>1. 页面已加载完成<br>2. 在商品详情页<br>3. 问大家可见', null, false);
+      } else {
+        stopQaExtraction(null, response.count, true);
+      }
+    } else {
+      throw new Error(response?.message || '提取失败');
+    }
+  } catch (error) {
+    console.error('提取问答出错:', error);
+    clearTimeout(timeoutId);
+    stopQaExtraction(`❌ 提取失败：${error.message}`);
+  }
+}
+
+// 停止问答提取
+function stopQaExtraction(message, finalCount = null, isSuccess = false) {
+  isExtractingQa = false;
+  startQaBtn.style.display = 'block';
+  stopQaBtn.style.display = 'none';
+
+  if (isSuccess && finalCount !== null) {
+    showStatus('success', `✅ 提取完成！共 ${finalCount} 个回答`);
+    exportQaBtn.disabled = false;
+  } else {
+    showStatus('error', message || '❌ 提取失败');
+  }
+
+  fetchCollectedQaData();
+}
+
+// 停止问答提取按钮
+stopQaBtn.addEventListener('click', async () => {
+  console.log('点击停止问答提取');
+
+  try {
+    const response = await chrome.tabs.sendMessage(currentTabId, { action: 'stopQa' });
+    console.log('stopQa 响应:', response);
+
+    isExtractingQa = false;
+    startQaBtn.style.display = 'block';
+    stopQaBtn.style.display = 'none';
+    showStatus('success', '⏸ 已停止提取');
+
+    await fetchCollectedQaData();
+  } catch (error) {
+    console.error('停止失败:', error);
+    showStatus('error', `停止失败：${error.message}`);
+  }
+});
+
+// 导出问答数据按钮
+exportQaBtn.addEventListener('click', async () => {
+  console.log('点击导出问答');
+
+  try {
+    await fetchCollectedQaData();
+
+    if (collectedQaData.length === 0) {
+      showStatus('error', '没有可导出的问答数据');
+      return;
+    }
+
+    showStatus('success', `正在导出 ${collectedQaData.length} 个回答...`);
+    await exportQaToCsv(collectedQaData);
+    showStatus('success', `✅ 导出成功！共 ${collectedQaData.length} 个回答`);
+  } catch (error) {
+    console.error('导出问答失败:', error);
+    showStatus('error', `❌ 导出失败：${error.message}`);
+  }
+});
+
+// 获取已收集的问答数据
+async function fetchCollectedQaData() {
+  try {
+    const response = await chrome.tabs.sendMessage(currentTabId, { action: 'getQaData' });
+    console.log('getQaData 响应:', response);
+
+    if (response && response.success) {
+      collectedQaData = response.data || [];
+      updateCount(collectedQaData.length);
+    }
+  } catch (error) {
+    console.error('获取问答数据失败:', error);
+  }
+}
+
+// 导出问答为CSV
+async function exportQaToCsv(answers) {
+  // 问答CSV字段
+  const headers = [
+    '问题内容',
+    '回答者昵称',
+    '用户标签',
+    '回答内容',
+    '回答时间',
+    '购买SKU',
+    '用户身份',
+    '点赞数',
+    '评论数'
+  ];
+
+  const rows = answers.map(answer => [
+    answer.question || '',
+    answer.user_nick || '',
+    answer.user_tag || '',
+    answer.answer_content || '',
+    answer.answer_time || '',
+    answer.purchase_sku || '',
+    answer.user_identity || '',
+    answer.like_count || '0',
+    answer.comment_count || '0'
+  ]);
+
+  const csvContent = [
+    headers.join(','),
+    ...rows.map(row => row.map(cell => {
+      const cellStr = String(cell);
+      if (cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n') || cellStr.includes('年')) {
+        return `"${cellStr.replace(/"/g, '""')}"`;
+      }
+      return cellStr;
+    }).join(','))
+  ].join('\n');
+
+  // 添加BOM
+  const BOM = '\uFEFF';
+  const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
+
+  // 生成文件名
+  const now = new Date();
+  const timestamp = now.toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const filename = `问答数据_${timestamp}.csv`;
+
+  // 下载文件
+  const url = URL.createObjectURL(blob);
+  await chrome.downloads.download({
+    url: url,
+    filename: filename,
+    saveAs: true
+  });
+
+  setTimeout(() => URL.revokeObjectURL(url), 100);
 }

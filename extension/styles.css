@@ -81,6 +81,23 @@ body {
   margin-bottom: 6px;
 }
 
+/* ==================== 分区样式 ==================== */
+.section {
+  margin-bottom: 15px;
+  padding: 12px;
+  background: #fafafa;
+  border-radius: 8px;
+  border: 1px solid #eee;
+}
+
+.section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #666;
+  margin-bottom: 10px;
+  text-align: center;
+}
+
 /* ==================== 按钮样式 ==================== */
 .button {
   width: 100%;

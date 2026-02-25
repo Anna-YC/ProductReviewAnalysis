@@ -16,25 +16,44 @@
       <strong>使用说明：</strong>
       <ol>
         <li>打开淘宝/天猫商品详情页</li>
-        <li>滚动到评论区</li>
-        <li>点击下方"开始爬取"按钮</li>
-        <li>插件自动翻页并提取评论</li>
+        <li>点击下方按钮开始提取</li>
+        <li>插件自动翻页并提取数据</li>
         <li>完成后点击"导出数据"</li>
       </ol>
     </div>
   </div>
 
-  <button id="startBtn" class="button button-primary">
-    🚀 开始爬取评论
-  </button>
+  <!-- 评论区提取按钮 -->
+  <div class="section">
+    <div class="section-title">📝 评论提取</div>
+    <button id="startBtn" class="button button-primary">
+      🚀 开始提取评论
+    </button>
 
-  <button id="stopBtn" class="button button-secondary" style="display:none;">
-    ⏸ 停止爬取
-  </button>
+    <button id="stopBtn" class="button button-secondary" style="display:none;">
+      ⏸ 停止提取
+    </button>
 
-  <button id="exportBtn" class="button button-secondary" disabled>
-    📥 导出数据
-  </button>
+    <button id="exportBtn" class="button button-secondary" disabled>
+      📥 导出评论
+    </button>
+  </div>
+
+  <!-- 问大家提取按钮 -->
+  <div class="section">
+    <div class="section-title">❓ 问大家</div>
+    <button id="startQaBtn" class="button button-primary">
+      🚀 开始提取问答
+    </button>
+
+    <button id="stopQaBtn" class="button button-secondary" style="display:none;">
+      ⏸ 停止提取
+    </button>
+
+    <button id="exportQaBtn" class="button button-secondary" disabled>
+      📥 导出问答
+    </button>
+  </div>
 
   <button id="analyzeBtn" class="button button-success" disabled>
     📊 一键分析（生成报告）
@@ -51,14 +70,14 @@
       <div id="progressFill" class="progress-fill"></div>
     </div>
     <div class="count">
-      <span id="count">0</span> 条评论
+      <span id="count">0</span> 条数据
     </div>
   </div>
 
   <div class="footer">
-    <p>数据会自动保存为Excel/CSV格式</p>
-    <p>支持淘宝和天猫平台</p>
-    <p class="mt-1">版本 2.0.0 - 独立封装版</p>
+    <p>支持淘宝/天猫/天猫国际</p>
+    <p>评论 + 问大家双模式提取</p>
+    <p class="mt-1">版本 2.8.0</p>
   </div>
 
   <script src="config.js"></script>

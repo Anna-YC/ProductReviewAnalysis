@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "淘宝评论助手",
-  "version": "2.7.4",
+  "version": "2.8.2",
   "description": "帮助提取淘宝/天猫商品评论数据 - 独立封装版本",
   "author": "Product Review Analysis Team",
   "homepage_url": "https://github.com/yourusername/ProductReviewAnalysis",
@@ -13,7 +13,12 @@
   ],
   "host_permissions": [
     "https://*.taobao.com/*",
-    "https://*.tmall.com/*"
+    "https://*.tmall.com/*",
+    "https://*.tmall.hk/*",
+    "https://*.world.tmall.com/*",
+    "https://*.import.tmall.com/*",
+    "https://detail.tmall.com/*",
+    "https://detail.tmall.hk/*"
   ],
   "action": {
     "default_popup": "popup.html",
@@ -23,7 +28,12 @@
     {
       "matches": [
         "https://*.taobao.com/*",
-        "https://*.tmall.com/*"
+        "https://*.tmall.com/*",
+        "https://*.tmall.hk/*",
+        "https://*.world.tmall.com/*",
+        "https://*.import.tmall.com/*",
+        "https://detail.tmall.com/*",
+        "https://detail.tmall.hk/*"
       ],
       "js": ["config.js", "content.js"],
       "run_at": "document_start",
@@ -33,7 +43,15 @@
   "web_accessible_resources": [
     {
       "resources": ["*.js", "*.css"],
-      "matches": ["https://*.taobao.com/*", "https://*.tmall.com/*"]
+      "matches": [
+        "https://*.taobao.com/*",
+        "https://*.tmall.com/*",
+        "https://*.tmall.hk/*",
+        "https://*.world.tmall.com/*",
+        "https://*.import.tmall.com/*",
+        "https://detail.tmall.com/*",
+        "https://detail.tmall.hk/*"
+      ]
     }
   ]
 }
