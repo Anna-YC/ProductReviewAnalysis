@@ -1006,7 +1006,7 @@
   // 查找问答项
   function findQaItems() {
     var selectors = [
-      '[class*="qaItem"]',
+      '[class*="qaItem"]',  // 正式问答界面
       '[class*="QAItem"]',
       '.qa-item',
       '[data-component="qa-item"]'
@@ -1016,6 +1016,7 @@
       try {
         var items = document.querySelectorAll(selectors[i]);
         if (items.length > 0) {
+          console.log('✅ 找到 ' + items.length + ' 个问答项 (选择器: ' + selectors[i] + ')');
           return Array.prototype.slice.call(items);
         }
       } catch (e) {}
@@ -1023,10 +1024,10 @@
     return [];
   }
 
-  // 提取单个问答数据
-  function extractQaData(qaItem) {
+  // 提取单个问答数据（从answerItem提取单个回答）
+  function extractAnswerData(answerItem, questionText) {
     var answer = {
-      question: '',
+      question: questionText || '',
       user_nick: '',
       user_tag: '',
       answer_content: '',
@@ -1038,104 +1039,132 @@
     };
 
     try {
-      // 提取问题内容
-      var questionElement = qaItem.querySelector('[class*="questionTitle"]');
-      if (questionElement) {
-        answer.question = questionElement.textContent.trim();
-      }
-
-      // 查找所有回答项
-      var answerItems = qaItem.querySelectorAll('[class*="answerItem"]');
-      if (answerItems.length === 0) {
-        return null;
-      }
-
-      // 提取第一个回答的数据（可以根据需要修改为提取所有回答）
-      var firstAnswer = answerItems[0];
-
       // 提取回答者昵称
-      var nickElement = firstAnswer.querySelector('[class*="userNick"]');
+      var nickElement = answerItem.querySelector('[class*="userNick"]');
       if (nickElement) {
         answer.user_nick = nickElement.textContent.trim();
       }
 
-      // 提取用户标签
-      var tagElement = firstAnswer.querySelector('[class*="userTag"]');
+      // 提取用户标签（如"回头客"）
+      var tagElement = answerItem.querySelector('[class*="userTag"]');
       if (tagElement) {
         answer.user_tag = tagElement.textContent.trim();
       }
 
       // 提取回答内容
-      var contentElement = firstAnswer.querySelector('[class*="answerContent"]');
+      var contentElement = answerItem.querySelector('[class*="answerContent"], [class*="initContent"]');
       if (contentElement) {
         answer.answer_content = contentElement.textContent.trim();
       }
 
       // 提取回答时间和SKU
-      var metaElement = firstAnswer.querySelector('[class*="answerMeta"], [class*="answerTime"]');
+      var metaElement = answerItem.querySelector('[class*="answerMeta"], [class*="answerTime"]');
       if (metaElement) {
-        var metaText = metaElement.textContent || '';
-        var metaTitle = metaElement.getAttribute('title') || '';
+        var metaTitle = metaElement.getAttribute('title') || metaElement.textContent || '';
 
-        // 提取时间（如"近6天发布"）
-        var timeMatch = metaText.match(/(近\d+天发布|今天发布|昨天发布|\d+天前发布)/);
+        console.log('🔍 提取SKU，原始title:', metaTitle);
+
+        // 提取购买SKU（从title中提取【以及其后的所有内容）
+        // 格式：2025.05.21 · 【超值组合】冰柠105*2+薄荷105*2
+        // 期望输出：【超值组合】冰柠105*2+薄荷105*2
+        // 查找【，然后截取从【到字符串末尾的所有内容
+        var skuIndex = metaTitle.indexOf('【');
+        if (skuIndex > -1) {
+          // 从【开始，提取到字符串末尾的所有内容
+          var skuContent = metaTitle.substring(skuIndex);
+          answer.purchase_sku = skuContent;
+          console.log('✅ 提取购买SKU:', answer.purchase_sku);
+        } else {
+          console.log('⚠️ 未找到【，metaTitle:', metaTitle);
+        }
+
+        // 提取时间（从title中提取时间部分，去除SKU部分）
+        var timePart = metaTitle.split('·')[0].trim();
+        var timeMatch = timePart.match(/(近\d+[天周月年]+发布|今天发布|昨天发布|\d+天前发布|\d+[周月]前发布|\d{4}\.\d{2}\.\d{2})/);
         if (timeMatch) {
           answer.answer_time = timeMatch[1];
         } else {
-          answer.answer_time = metaText.split('·')[0].trim();
+          answer.answer_time = timePart;
         }
-
-        // 提取购买SKU（从title中提取【】内的内容）
-        var skuMatch = metaTitle.match(/【(.+?)】/);
-        if (skuMatch) {
-          answer.purchase_sku = skuMatch[1];
-        } else if (metaText.indexOf('·') > -1) {
-          var skuPart = metaText.split('·')[1];
-          if (skuPart) {
-            answer.purchase_sku = skuPart.replace(/^\s+/, '').replace(/\s+$/, '');
-          }
-        }
+        console.log('✅ 提取回答时间:', answer.answer_time);
       }
 
-      // 提取用户身份（如"近期好评"、"半年内已购"）
-      var identityElement = firstAnswer.querySelector('[class*="timeAgo"]');
+      // 提取用户身份（如"近期购买并好评"、"半年内已购"）
+      var identityElement = answerItem.querySelector('[class*="timeAgo"]');
       if (identityElement) {
         answer.user_identity = identityElement.textContent.trim();
       }
 
       // 提取点赞数和评论数
-      var btnItems = firstAnswer.querySelectorAll('[class*="headerBtnItem"]');
+      var btnItems = answerItem.querySelectorAll('[class*="headerBtnItem"]');
       for (var bi = 0; bi < btnItems.length; bi++) {
         var btnHTML = btnItems[bi].innerHTML || '';
 
         // 检查是否是点赞按钮（icon-taobaoxianxing）
         if (btnHTML.indexOf('icon-taobaoxianxing') > -1) {
-          var likeDiv = btnItems[bi].querySelector('[class*="headerBtnCount"], div');
-          if (likeDiv) {
-            var likeText = likeDiv.textContent.trim();
-            if (/^\d+$/.test(likeText)) {
-              answer.like_count = likeText;
+          var countDiv = btnItems[bi].querySelector('[class*="headerBtnCount"], div');
+          if (countDiv) {
+            var countText = countDiv.textContent.trim();
+            if (/^\d+$/.test(countText)) {
+              answer.like_count = countText;
             }
           }
         }
 
         // 检查是否是评论按钮（icon-taobaopinglun）
         if (btnHTML.indexOf('icon-taobaopinglun') > -1) {
-          var commentDiv = btnItems[bi].querySelector('[class*="headerBtnCount"], div');
-          if (commentDiv) {
-            var commentText = commentDiv.textContent.trim();
-            if (/^\d+$/.test(commentText)) {
-              answer.comment_count = commentText;
+          var commentCountDiv = btnItems[bi].querySelector('[class*="headerBtnCount"], div');
+          if (commentCountDiv) {
+            var commentCountText = commentCountDiv.textContent.trim();
+            if (/^\d+$/.test(commentCountText)) {
+              answer.comment_count = commentCountText;
             }
           }
         }
       }
 
-      console.log('✅ 提取问答:', answer.question.substring(0, 20), '->', answer.answer_content.substring(0, 20));
       return answer;
     } catch (e) {
-      console.warn('提取问答数据失败:', e);
+      console.warn('提取回答数据失败:', e);
       return null;
+    }
+  }
+
+  // 从qaItem提取问题下的所有回答
+  function extractQaData(qaItem) {
+    var answers = [];
+
+    try {
+      // 提取问题内容
+      var questionElement = qaItem.querySelector('[class*="questionTitle"]');
+      var questionText = '';
+      if (questionElement) {
+        questionText = questionElement.textContent.trim();
+        console.log('✅ 问题:', questionText);
+      }
+
+      // 查找该问题下的所有回答项
+      var answerItems = qaItem.querySelectorAll('[class*="answerItem"]');
+      if (answerItems.length === 0) {
+        console.log('⚠️ 该问题没有回答');
+        return [];
+      }
+
+      console.log('📝 该问题有 ' + answerItems.length + ' 个回答');
+
+      // 遍历每个回答，提取数据
+      for (var i = 0; i < answerItems.length; i++) {
+        var answer = extractAnswerData(answerItems[i], questionText);
+        if (answer && answer.answer_content) {
+          answers.push(answer);
+          console.log('  └─ 回答' + (i + 1) + ':', answer.user_nick || '匿名', '->', answer.answer_content.substring(0, 20));
+        }
+      }
+
+      return answers;
+    } catch (e) {
+      console.warn('提取问答数据失败:', e);
+      return [];
     }
   }
 
@@ -1150,7 +1179,7 @@
       return true;
     }
 
-    // 步骤1: 先点击"用户评价"标签（因为问大家在用户评价下面）
+    // 步骤1: 先点击"用户评价"标签
     console.log('🔍 步骤1: 查找"用户评价"标签...');
     var tabSelectors = [
       '[class*="tab--"]',
@@ -1186,89 +1215,80 @@
       }
     }
 
-    // 步骤2: 在用户评价页面中查找"问大家"入口
-    console.log('🔍 步骤2: 在用户评价页面查找"问大家"...');
+    // 步骤2: 在用户评价页面中查找"问大家"区域和"查看全部问答"按钮
+    console.log('🔍 步骤2: 查找"查看全部问答"按钮...');
 
     // 等待页面稳定
     await new Promise(function(r) { setTimeout(r, 2000); });
 
-    // 方法1: 查找"问大家"链接/按钮
-    var qaLinkFound = false;
-    var qaSelectors = [
-      'a[href*="ask"]',
-      'a[href*="qa"]',
-      '[class*="ask"]',
-      '[class*="question"]',
-      '[class*="qa-tab"]',
-      '[class*="subTab"]'
+    // 方法1: 通过类名查找"查看全部问答"按钮
+    var viewAllBtnSelectors = [
+      '[class*="bottomBtn"]',
+      '[class*="viewAll"]',
+      '[class*="ViewAll"]'
     ];
 
-    for (var qs = 0; qs < qaSelectors.length; qs++) {
-      var elements = document.querySelectorAll(qaSelectors[qs]);
-      for (var e = 0; e < elements.length; e++) {
-        var el = elements[e];
-        var text = el.textContent || '';
+    for (var bs = 0; bs < viewAllBtnSelectors.length; bs++) {
+      var btns = document.querySelectorAll(viewAllBtnSelectors[bs]);
+      for (var b = 0; b < btns.length; b++) {
+        var btn = btns[b];
+        var btnText = btn.textContent || '';
 
-        if (text.indexOf('问大家') > -1 || text.indexOf('全部问答') > -1) {
-          console.log('✅ 找到"问大家"入口:', text);
-          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // 精确匹配"查看全部问答"
+        if (btnText === '查看全部问答' || (btnText.indexOf('查看全部问答') > -1 && btnText.length < 30)) {
+          console.log('✅ 找到"查看全部问答"按钮');
+
+          btn.scrollIntoView({ behavior: 'smooth', block: 'center' });
           await new Promise(function(r) { setTimeout(r, 1000); });
-          clickElement(el);
-          console.log('✅ 已点击"问大家"入口');
-          qaLinkFound = true;
 
-          await new Promise(function(r) { setTimeout(r, 4000); });
+          clickElement(btn);
+          console.log('✅ 已点击"查看全部问答"按钮');
+
+          // 等待页面跳转
+          await new Promise(function(r) { setTimeout(r, 5000); });
 
           var afterClickCount = findQaItems().length;
+          console.log('点击后问答数:', afterClickCount);
+
           if (afterClickCount > 5) {
             console.log('✅ 成功进入问大家页面');
             return true;
           }
-          break;
         }
       }
-      if (qaLinkFound) break;
     }
 
-    // 方法2: 通过文本搜索查找"问大家"或"查看全部问答"
-    if (!qaLinkFound) {
-      console.log('🔍 步骤3: 通过文本查找"问大家"入口...');
-      var allElements = document.querySelectorAll('a, button, span, div');
+    // 方法2: 通过文本搜索查找"查看全部问答"
+    console.log('🔍 步骤3: 通过文本查找"查看全部问答"按钮...');
+    var allElements = document.querySelectorAll('a, button, span, div');
 
-      for (var i = 0; i < allElements.length; i++) {
-        var el = allElements[i];
-        var text = el.textContent || '';
+    for (var i = 0; i < allElements.length; i++) {
+      var el = allElements[i];
+      var text = el.textContent || '';
 
-        // 查找包含"问大家"或"问答"的元素
-        if ((text.indexOf('问大家') > -1 || text.indexOf('全部问答') > -1 || text.indexOf('查看问答') > -1) &&
-            text.length < 50 && text.length > 2) {
+      // 精确匹配"查看全部问答"
+      if (text === '查看全部问答' || (text.indexOf('查看全部问答') > -1 && text.length < 30)) {
 
-          var rect = el.getBoundingClientRect();
-          if (rect.width === 0 || rect.height === 0) continue;
+        var rect = el.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) continue;
 
-          var style = window.getComputedStyle(el);
-          if (style.display === 'none' || style.visibility === 'hidden') continue;
+        var style = window.getComputedStyle(el);
+        if (style.display === 'none' || style.visibility === 'hidden') continue;
 
-          // 只选择可点击的元素
-          if (el.tagName === 'A' || el.tagName === 'BUTTON' ||
-              style.cursor === 'pointer' || el.onclick !== null) {
+        console.log('✅ 找到"查看全部问答"按钮: "' + text + '"');
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        await new Promise(function(r) { setTimeout(r, 1000); });
+        clickElement(el);
+        console.log('✅ 已点击"查看全部问答"按钮');
 
-            console.log('✅ 找到可点击的"问大家"入口: "' + text + '"');
-            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            await new Promise(function(r) { setTimeout(r, 1000); });
-            clickElement(el);
-            console.log('✅ 已点击"问大家"入口');
+        await new Promise(function(r) { setTimeout(r, 5000); });
 
-            await new Promise(function(r) { setTimeout(r, 4000); });
+        var afterClickCount = findQaItems().length;
+        console.log('点击后问答数:', afterClickCount);
 
-            var afterClickCount = findQaItems().length;
-            console.log('点击后问答数:', afterClickCount);
-
-            if (afterClickCount > 5) {
-              console.log('✅ 成功进入问大家页面');
-              return true;
-            }
-          }
+        if (afterClickCount > 5) {
+          console.log('✅ 成功进入问大家页面');
+          return true;
         }
       }
     }
@@ -1292,102 +1312,7 @@
     }
 
     console.log('⚠️ 未能自动定位到问大家页面，当前问答数:', findQaItems().length);
-    console.log('💡 建议手动进入用户评价页面，然后点击"问大家"入口');
-    return false;
-  }
-
-  // 点击"查看全部问答"按钮
-  async function clickViewAllQa() {
-    console.log('🔍 查找"查看全部问答"按钮...');
-
-    // 记录当前URL
-    var beforeUrl = window.location.href;
-    console.log('📍 当前URL:', beforeUrl);
-
-    // 多种可能的按钮文本
-    var buttonTexts = ['查看全部问答', '全部问答', '查看更多问答', '查看问答', '查看全部'];
-
-    // 方法1: 通过类名查找
-    var classSelectors = [
-      '[class*="ShowButton--"]',
-      '[class*="showButton--"]',
-      '[class*="ViewAll--"]',
-      '[class*="viewAll--"]',
-      '[class*="showMore--"]',
-      '[class*="MoreButton--"]'
-    ];
-
-    for (var s = 0; s < classSelectors.length; s++) {
-      var btns = document.querySelectorAll(classSelectors[s]);
-      for (var b = 0; b < btns.length; b++) {
-        var btn = btns[b];
-        var btnText = btn.textContent || '';
-
-        // 检查是否包含"问答"相关文本
-        if (btnText.indexOf('问答') > -1 || btnText.indexOf('全部') > -1) {
-          console.log('✅ 通过类名找到按钮:', btnText);
-
-          btn.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          await new Promise(function(r) { setTimeout(r, 1000); });
-
-          clickElement(btn);
-          console.log('✅ 已点击按钮（类名方式）');
-
-          await new Promise(function(r) { setTimeout(r, 5000); });
-
-          if (window.location.href !== beforeUrl || findQaItems().length > 5) {
-            console.log('✅ 页面已变化，跳转成功');
-            return true;
-          }
-        }
-      }
-    }
-
-    // 方法2: 通过文本内容查找
-    console.log('🔍 通过文本查找按钮...');
-    var allElements = document.querySelectorAll('a, button, span, div');
-
-    for (var i = 0; i < allElements.length; i++) {
-      var el = allElements[i];
-      var text = el.textContent || '';
-
-      for (var j = 0; j < buttonTexts.length; j++) {
-        if ((text === buttonTexts[j] || text.indexOf(buttonTexts[j]) > -1) &&
-            text.length < 100) {
-
-          var rect = el.getBoundingClientRect();
-          if (rect.width === 0 || rect.height === 0) continue;
-
-          var style = window.getComputedStyle(el);
-          if (style.display === 'none' || style.visibility === 'hidden') continue;
-
-          console.log('✅ 找到按钮: "' + text + '"');
-
-          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          await new Promise(function(r) { setTimeout(r, 1000); });
-
-          clickElement(el);
-          console.log('✅ 已点击按钮（文本方式）');
-
-          await new Promise(function(r) { setTimeout(r, 5000); });
-
-          var afterUrl = window.location.href;
-          var qaCount = findQaItems().length;
-
-          console.log('📍 点击后URL:', afterUrl);
-          console.log('📊 问答数:', qaCount);
-
-          if (afterUrl !== beforeUrl || qaCount > 5) {
-            console.log('✅ 跳转成功或有问答加载');
-            return true;
-          } else {
-            console.log('⚠️ 点击后无明显变化，尝试下一个按钮');
-          }
-        }
-      }
-    }
-
-    console.log('⚠️ 未找到有效的"查看全部问答"按钮');
+    console.log('💡 建议手动点击"用户评价"，然后点击"查看全部问答"按钮');
     return false;
   }
 
@@ -1432,12 +1357,17 @@
 
       await new Promise(function(r) { setTimeout(r, 2500); });
 
+      // 每次滚动后，尝试展开所有回答
+      await expandAllAnswers();
+
       var curr = findQaItems().length;
 
       if (curr > last) {
         console.log('📈 问答增加: ' + last + ' -> ' + curr);
         last = curr;
         noChangeCount = 0;
+        // 问答增加时发送更新
+        sendQaProgress(i + 1, curr, '加载到新问答');
       } else {
         noChangeCount++;
         if (noChangeCount >= 5) {
@@ -1451,31 +1381,98 @@
     return last;
   }
 
+  // 展开所有回答（点击"查看全部回答"按钮）- 模拟人类操作避免反爬
+  async function expandAllAnswers() {
+    try {
+      // 检查是否收到停止指令
+      if (window._shouldStopExtractingQa) {
+        console.log('⏸ 展开操作已取消');
+        return;
+      }
+
+      // 查找所有"查看全部回答"按钮
+      var viewAllBtns = document.querySelectorAll('[class*="viewAllBtnWrap"], [class*="viewAllBtn"], [class*="ViewAllBtn"]');
+      var clickCount = 0;
+
+      console.log('🔍 找到 ' + viewAllBtns.length + ' 个"查看全部回答"按钮');
+
+      for (var i = 0; i < viewAllBtns.length; i++) {
+        // 每次循环前检查停止标志
+        if (window._shouldStopExtractingQa) {
+          console.log('⏸ 展开操作已停止，已点击 ' + clickCount + ' 个按钮');
+          return;
+        }
+
+        var btn = viewAllBtns[i];
+        var btnText = btn.textContent || '';
+
+        // 确认是"查看全部回答"按钮
+        if (btnText.indexOf('查看全部回答') > -1 || btnText.indexOf('展开') > -1) {
+          try {
+            // 滚动到按钮位置
+            btn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+            // 随机延迟 1-3 秒，模拟人类操作
+            var randomDelay = Math.floor(Math.random() * 2000) + 1000;
+            await new Promise(function(r) { setTimeout(r, randomDelay); });
+
+            // 再次检查停止标志（延迟后）
+            if (window._shouldStopExtractingQa) {
+              console.log('⏸ 展开操作已停止，已点击 ' + clickCount + ' 个按钮');
+              return;
+            }
+
+            // 点击按钮
+            btn.click();
+            clickCount++;
+            console.log('✅ 已点击"查看全部回答"按钮 ' + clickCount + '/' + viewAllBtns.length);
+
+            // 点击后再延迟 2-4 秒，等待内容加载
+            var afterClickDelay = Math.floor(Math.random() * 2000) + 2000;
+            await new Promise(function(r) { setTimeout(r, afterClickDelay); });
+
+            // 每点击 3 个按钮后，暂停更长时间
+            if (clickCount % 3 === 0 && clickCount < viewAllBtns.length) {
+              console.log('⏸ 暂停 ' + (Math.floor(Math.random() * 2000) + 2000) + 'ms，避免触发反爬');
+              await new Promise(function(r) { setTimeout(r, Math.floor(Math.random() * 2000) + 2000); });
+            }
+          } catch (e) {
+            console.warn('点击按钮失败:', e);
+          }
+        }
+      }
+
+      if (clickCount > 0) {
+        console.log('✅ 共展开了 ' + clickCount + ' 个问题的所有回答');
+      }
+    } catch (e) {
+      console.warn('展开回答失败:', e);
+    }
+  }
+
   // 提取所有问答数据
   function extractAllQa() {
     var qaItems = findQaItems();
-    var answers = [];
+    var allAnswers = [];
 
-    console.log('🔍 开始提取问答数据，共 ' + qaItems.length + ' 个问答项');
+    console.log('🔍 开始提取问答数据，共 ' + qaItems.length + ' 个问题');
 
     for (var i = 0; i < qaItems.length; i++) {
       try {
-        var answerItems = qaItems[i].querySelectorAll('[class*="answerItem"]');
+        // 提取该问题下的所有回答
+        var answers = extractQaData(qaItems[i]);
 
-        // 每个回答项提取一条数据
-        for (var j = 0; j < answerItems.length; j++) {
-          var answer = extractQaData(qaItems[i]);
-          if (answer && answer.answer_content) {
-            answers.push(answer);
-          }
+        // 将所有回答添加到总数组中
+        for (var j = 0; j < answers.length; j++) {
+          allAnswers.push(answers[j]);
         }
       } catch (e) {
         console.warn('提取第 ' + i + ' 个问答失败:', e);
       }
     }
 
-    console.log('✅ 提取完成，共 ' + answers.length + ' 个回答');
-    return answers;
+    console.log('✅ 提取完成，共 ' + allAnswers.length + ' 个回答');
+    return allAnswers;
   }
 
   // 运行问答提取主流程
@@ -1484,10 +1481,14 @@
       console.log('🚀 开始问答提取流程');
 
       var finalCount = await scrollLoadQa();
+
+      // 无论是否完成，都提取当前已有的数据
       var answers = extractAllQa();
 
-      // 保存到全局变量
+      // 保存到全局变量（确保即使停止也能导出）
       window._lastExtractedQaData = answers;
+
+      console.log('✅ 数据已保存到全局变量，共 ' + answers.length + ' 个回答');
 
       return {
         success: true,
@@ -1496,10 +1497,23 @@
       };
     } catch (error) {
       console.error('问答提取失败:', error);
-      return {
-        success: false,
-        message: error.message
-      };
+
+      // 即使出错，也尝试提取已有数据
+      try {
+        var answers = extractAllQa();
+        window._lastExtractedQaData = answers;
+        console.log('⚠️ 提取出错，但已保存 ' + answers.length + ' 个已有数据');
+        return {
+          success: true,
+          count: answers.length,
+          data: answers
+        };
+      } catch (e2) {
+        return {
+          success: false,
+          message: error.message
+        };
+      }
     }
   }
   async function scrollLoad() {
@@ -1855,7 +1869,21 @@
         // 停止问答提取
         console.log('⏸ 收到停止问答提取指令');
         window._shouldStopExtractingQa = true;
-        sendResponse({ success: true, message: '已发送停止信号' });
+
+        // 立即提取和保存当前已有的数据
+        try {
+          var answers = extractAllQa();
+          window._lastExtractedQaData = answers;
+          console.log('✅ 停止时已保存 ' + answers.length + ' 个已有数据到全局变量');
+          sendResponse({
+            success: true,
+            message: '已停止，已保存 ' + answers.length + ' 个数据',
+            count: answers.length
+          });
+        } catch (e) {
+          console.warn('停止时提取数据失败:', e);
+          sendResponse({ success: true, message: '已发送停止信号' });
+        }
         break;
 
       default:

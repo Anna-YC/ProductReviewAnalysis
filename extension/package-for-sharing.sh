@@ -3,7 +3,7 @@
 
 OUTPUT_DIR="dist"
 EXTENSION_NAME="taobao-review-helper"
-VERSION="2.8.2"
+VERSION="2.9.1"
 
 # 创建输出目录
 mkdir -p "$OUTPUT_DIR"

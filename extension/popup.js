@@ -558,9 +558,18 @@ stopQaBtn.addEventListener('click', async () => {
     isExtractingQa = false;
     startQaBtn.style.display = 'block';
     stopQaBtn.style.display = 'none';
-    showStatus('success', '⏸ 已停止提取');
 
+    // 显示停止信息和数据数量
+    var message = response?.message || '⏸ 已停止提取';
+    showStatus('success', message);
+
+    // 获取已保存的数据
     await fetchCollectedQaData();
+
+    // 如果有数据，启用导出按钮
+    if (collectedQaData.length > 0) {
+      exportQaBtn.disabled = false;
+    }
   } catch (error) {
     console.error('停止失败:', error);
     showStatus('error', `停止失败：${error.message}`);
