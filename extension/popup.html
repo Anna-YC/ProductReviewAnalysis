@@ -1,86 +1,131 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>淘宝评论助手</title>
-  <link rel="stylesheet" href="styles.css">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      width: 320px;
+      padding: 24px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif;
+      background: linear-gradient(135deg, #ff5000 0%, #ff6b35 100%);
+      color: white;
+      text-align: center;
+    }
+    
+    .logo {
+      font-size: 48px;
+      margin-bottom: 12px;
+      filter: drop-shadow(0 4px 8px rgba(0,0,0,0.2));
+    }
+    
+    h1 {
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      letter-spacing: 1px;
+    }
+    
+    .version {
+      font-size: 12px;
+      opacity: 0.9;
+      margin-bottom: 20px;
+    }
+    
+    .desc {
+      font-size: 13px;
+      line-height: 1.6;
+      opacity: 0.95;
+      margin-bottom: 20px;
+      padding: 0 10px;
+    }
+    
+    .btn-open {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 24px;
+      background: white;
+      color: #ff5000;
+      border: none;
+      border-radius: 25px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      transition: all 0.2s ease;
+    }
+    
+    .btn-open:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(0,0,0,0.25);
+    }
+    
+    .btn-open:active {
+      transform: translateY(0);
+    }
+    
+    .features {
+      margin-top: 20px;
+      padding-top: 20px;
+      border-top: 1px solid rgba(255,255,255,0.3);
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+    }
+    
+    .feature {
+      font-size: 12px;
+      opacity: 0.9;
+    }
+    
+    .feature-icon {
+      font-size: 16px;
+      margin-right: 4px;
+    }
+  </style>
 </head>
 <body>
-  <div class="header">
-    <h2>🛒 淘宝评论助手</h2>
-  </div>
-
-  <div id="status" class="status">
-    <div class="instructions">
-      <strong>使用说明：</strong>
-      <ol>
-        <li>打开淘宝/天猫商品详情页</li>
-        <li>点击下方按钮开始提取</li>
-        <li>插件自动翻页并提取数据</li>
-        <li>完成后点击"导出数据"</li>
-      </ol>
-    </div>
-  </div>
-
-  <!-- 评论区提取按钮 -->
-  <div class="section">
-    <div class="section-title">📝 评论提取</div>
-    <button id="startBtn" class="button button-primary">
-      🚀 开始提取评论
-    </button>
-
-    <button id="stopBtn" class="button button-secondary" style="display:none;">
-      ⏸ 停止提取
-    </button>
-
-    <button id="exportBtn" class="button button-secondary" disabled>
-      📥 导出评论
-    </button>
-  </div>
-
-  <!-- 问大家提取按钮 -->
-  <div class="section">
-    <div class="section-title">❓ 问大家</div>
-    <button id="startQaBtn" class="button button-primary">
-      🚀 开始提取问答
-    </button>
-
-    <button id="stopQaBtn" class="button button-secondary" style="display:none;">
-      ⏸ 停止提取
-    </button>
-
-    <button id="exportQaBtn" class="button button-secondary" disabled>
-      📥 导出问答
-    </button>
-  </div>
-
-  <button id="analyzeBtn" class="button button-success" disabled>
-    📊 一键分析（生成报告）
+  <div class="logo">🛒</div>
+  <h1>淘宝评论助手</h1>
+  <div class="version">v2.9.3 侧边栏版</div>
+  
+  <p class="desc">
+    点击按钮打开侧边栏<br>
+    在浏览器侧边使用全部功能
+  </p>
+  
+  <button id="openSidePanel" class="btn-open">
+    <span>📋</span>
+    <span>打开侧边栏</span>
   </button>
-
-  <div id="analyzeTip" class="tip tip-success" style="display:none;">
-    <strong>✅ 数据已保存！</strong><br>
-    请运行以下命令生成报告：<br>
-    <code>python3 analyze_reviews.py output/crawler/评论数据_*.csv</code>
+  
+  <div class="features">
+    <span class="feature"><span class="feature-icon">💬</span>评论提取</span>
+    <span class="feature"><span class="feature-icon">❓</span>问大家</span>
+    <span class="feature"><span class="feature-icon">📊</span>一键分析</span>
   </div>
 
-  <div id="progress" class="progress">
-    <div class="progress-bar">
-      <div id="progressFill" class="progress-fill"></div>
-    </div>
-    <div class="count">
-      <span id="count">0</span> 条数据
-    </div>
-  </div>
-
-  <div class="footer">
-    <p>支持淘宝/天猫/天猫国际</p>
-    <p>评论 + 问大家双模式提取</p>
-    <p class="mt-1">版本 2.8.0</p>
-  </div>
-
-  <script src="config.js"></script>
-  <script src="popup.js"></script>
+  <script>
+    document.getElementById('openSidePanel').addEventListener('click', async () => {
+      try {
+        // 打开侧边栏
+        await chrome.sidePanel.open({ windowId: (await chrome.windows.getCurrent()).id });
+        // 关闭 popup
+        window.close();
+      } catch (error) {
+        console.error('打开侧边栏失败:', error);
+        // 降级方案：在新标签页打开
+        chrome.tabs.create({ url: chrome.runtime.getURL('sidepanel.html') });
+      }
+    });
+  </script>
 </body>
 </html>

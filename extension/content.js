@@ -1024,6 +1024,25 @@
     return [];
   }
 
+  // 统计所有回答的总数量（遍历所有问题，统计每个问题下的回答数）
+  function countTotalAnswers() {
+    var qaItems = findQaItems();
+    var totalAnswers = 0;
+
+    for (var i = 0; i < qaItems.length; i++) {
+      try {
+        // 在每个问题中查找回答项（使用与extractQaData相同的选择器）
+        var answerItems = qaItems[i].querySelectorAll('[class*="answerItem"]');
+        totalAnswers += answerItems.length;
+      } catch (e) {
+        console.warn('统计问题 ' + i + ' 的回答数失败:', e);
+      }
+    }
+
+    console.log('📊 当前统计: ' + qaItems.length + ' 个问题，' + totalAnswers + ' 个回答');
+    return totalAnswers;
+  }
+
   // 提取单个问答数据（从answerItem提取单个回答）
   function extractAnswerData(answerItem, questionText) {
     var answer = {
@@ -1325,13 +1344,15 @@
     // 先定位到问大家页面
     var navigated = await navigateToQa();
 
-    var last = findQaItems().length;
-    console.log('初始问答数:', last);
+    // 统计初始回答数量（不是问题数量）
+    var lastAnswerCount = countTotalAnswers();
+    var lastQuestionCount = findQaItems().length;
+    console.log('初始问题数:', lastQuestionCount, '初始回答数:', lastAnswerCount);
 
     if (navigated) {
-      sendQaProgress(0, last, '✅ 成功加载问大家页面');
+      sendQaProgress(0, lastAnswerCount, '✅ 成功加载问大家页面');
     } else {
-      sendQaProgress(0, last, '定位到问大家');
+      sendQaProgress(0, lastAnswerCount, '定位到问大家');
     }
 
     var noChangeCount = 0;
@@ -1339,12 +1360,12 @@
     for (var i = 0; i < 100; i++) {
       if (window._shouldStopExtractingQa) {
         console.log('⏸ 收到停止指令，中断滚动');
-        sendQaProgress(i, last, '已停止');
+        sendQaProgress(i, lastAnswerCount, '已停止');
         window._shouldStopExtractingQa = false;
-        return last;
+        return lastAnswerCount;
       }
 
-      sendQaProgress(i + 1, last, '滚动加载中...');
+      sendQaProgress(i + 1, lastAnswerCount, '滚动加载中...');
 
       // 滚动到底部
       var qaItems = findQaItems();
@@ -1360,14 +1381,17 @@
       // 每次滚动后，尝试展开所有回答
       await expandAllAnswers();
 
-      var curr = findQaItems().length;
+      // 统计新的回答数量
+      var currQuestionCount = findQaItems().length;
+      var currAnswerCount = countTotalAnswers();
 
-      if (curr > last) {
-        console.log('📈 问答增加: ' + last + ' -> ' + curr);
-        last = curr;
+      if (currAnswerCount > lastAnswerCount || currQuestionCount > lastQuestionCount) {
+        console.log('📈 问答增加 - 问题: ' + lastQuestionCount + ' -> ' + currQuestionCount + ', 回答: ' + lastAnswerCount + ' -> ' + currAnswerCount);
+        lastQuestionCount = currQuestionCount;
+        lastAnswerCount = currAnswerCount;
         noChangeCount = 0;
-        // 问答增加时发送更新
-        sendQaProgress(i + 1, curr, '加载到新问答');
+        // 问答增加时发送更新（显示回答数量）
+        sendQaProgress(i + 1, currAnswerCount, '加载到新问答');
       } else {
         noChangeCount++;
         if (noChangeCount >= 5) {
@@ -1377,8 +1401,8 @@
       }
     }
 
-    console.log('✅ 滚动完成，共 ' + last + ' 个问答');
-    return last;
+    console.log('✅ 滚动完成，共 ' + lastQuestionCount + ' 个问题，' + lastAnswerCount + ' 个回答');
+    return lastAnswerCount;
   }
 
   // 展开所有回答（点击"查看全部回答"按钮）- 模拟人类操作避免反爬

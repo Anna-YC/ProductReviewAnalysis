@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>淘宝评论助手</title>
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+  <!-- 头部 -->
+  <header class="header">
+    <div class="header-logo">
+      <span class="logo-icon">🛒</span>
+      <div class="header-text">
+        <h1>淘宝评论助手</h1>
+        <span class="version">v2.9.3</span>
+      </div>
+    </div>
+    <button id="toggleGuide" class="icon-btn" title="使用说明">❓</button>
+  </header>
+
+  <!-- 使用说明（可折叠） -->
+  <div id="guidePanel" class="guide-panel collapsed">
+    <div class="guide-content">
+      <ol>
+        <li>打开淘宝/天猫商品详情页</li>
+        <li>选择下方标签页（评论/问答）</li>
+        <li>点击"开始提取"按钮</li>
+        <li>等待自动翻页完成</li>
+        <li>导出数据或一键分析</li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- 状态区域 -->
+  <div id="statusCard" class="status-card">
+    <div id="statusIcon" class="status-icon">🌐</div>
+    <div class="status-info">
+      <div id="statusTitle" class="status-title">准备就绪</div>
+      <div id="statusDesc" class="status-desc">请在商品详情页使用</div>
+    </div>
+  </div>
+
+  <!-- 标签页导航 -->
+  <nav class="tab-nav">
+    <button class="tab-btn active" data-tab="reviews">
+      <span class="tab-icon">💬</span>
+      <span>评论</span>
+    </button>
+    <button class="tab-btn" data-tab="qa">
+      <span class="tab-icon">❓</span>
+      <span>问答</span>
+    </button>
+  </nav>
+
+  <!-- 评论提取面板 -->
+  <div id="tab-reviews" class="tab-panel active">
+    <div class="action-card">
+      <div class="action-header">
+        <span class="action-title">评论数据提取</span>
+        <span id="reviewCount" class="badge">0 条</span>
+      </div>
+      
+      <div class="action-buttons">
+        <button id="startBtn" class="btn btn-primary">
+          <span class="btn-icon">🚀</span>
+          <span>开始提取</span>
+        </button>
+        <button id="stopBtn" class="btn btn-warning" style="display:none;">
+          <span class="btn-icon">⏸</span>
+          <span>停止提取</span>
+        </button>
+      </div>
+
+      <!-- 进度条 -->
+      <div id="progressContainer" class="progress-container">
+        <div class="progress-info">
+          <span id="progressText">提取中...</span>
+          <span id="progressPercent">0%</span>
+        </div>
+        <div class="progress-bar">
+          <div id="progressFill" class="progress-fill"></div>
+        </div>
+        <div id="progressDetail" class="progress-detail">滚动 0 次 | 0 条评论</div>
+      </div>
+
+      <!-- 导出按钮组 -->
+      <div class="export-group">
+        <button id="exportBtn" class="btn btn-secondary" disabled>
+          <span class="btn-icon">📥</span>
+          <span>导出 CSV</span>
+        </button>
+        <button id="analyzeBtn" class="btn btn-success" disabled>
+          <span class="btn-icon">📊</span>
+          <span>一键分析</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 问大家面板 -->
+  <div id="tab-qa" class="tab-panel">
+    <div class="action-card">
+      <div class="action-header">
+        <span class="action-title">问答数据提取</span>
+        <span id="qaCount" class="badge">0 条</span>
+      </div>
+      
+      <div class="action-buttons">
+        <button id="startQaBtn" class="btn btn-primary">
+          <span class="btn-icon">🚀</span>
+          <span>开始提取</span>
+        </button>
+        <button id="stopQaBtn" class="btn btn-warning" style="display:none;">
+          <span class="btn-icon">⏸</span>
+          <span>停止提取</span>
+        </button>
+      </div>
+
+      <!-- 进度条 -->
+      <div id="qaProgressContainer" class="progress-container">
+        <div class="progress-info">
+          <span id="qaProgressText">提取中...</span>
+          <span id="qaProgressPercent">0%</span>
+        </div>
+        <div class="progress-bar">
+          <div id="qaProgressFill" class="progress-fill"></div>
+        </div>
+        <div id="qaProgressDetail" class="progress-detail">滚动 0 次 | 0 个回答</div>
+      </div>
+
+      <!-- 导出按钮 -->
+      <div class="export-group">
+        <button id="exportQaBtn" class="btn btn-secondary" disabled>
+          <span class="btn-icon">📥</span>
+          <span>导出问答</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 分析提示 -->
+  <div id="analyzeTip" class="tip-card" style="display:none;">
+    <div class="tip-header">
+      <span class="tip-icon">✅</span>
+      <span class="tip-title">数据已保存</span>
+    </div>
+    <div class="tip-body">
+      <p>文件已保存到项目目录</p>
+      <code id="savedPath" class="code-block"></code>
+      <p class="tip-command-title">运行命令生成报告：</p>
+      <code id="commandBlock" class="code-block command"></code>
+      <button id="copyCommand" class="btn btn-small btn-outline">📋 复制命令</button>
+    </div>
+  </div>
+
+  <!-- 页脚 -->
+  <footer class="footer">
+    <div class="platform-tags">
+      <span class="tag">淘宝</span>
+      <span class="tag">天猫</span>
+      <span class="tag">天猫国际</span>
+    </div>
+    <p class="copyright">Product Review Analysis Team</p>
+  </footer>
+
+  <script src="config.js"></script>
+  <script src="sidepanel.js"></script>
+</body>
+</html>

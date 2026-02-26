@@ -1,15 +1,22 @@
 {
   "manifest_version": 3,
   "name": "淘宝评论助手",
-  "version": "2.9.1",
-  "description": "帮助提取淘宝/天猫商品评论数据 - 独立封装版本",
+  "version": "2.9.3",
+  "description": "帮助提取淘宝/天猫商品评论数据 - 侧边栏版",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
   "author": "Product Review Analysis Team",
   "homepage_url": "https://github.com/yourusername/ProductReviewAnalysis",
   "permissions": [
     "activeTab",
     "downloads",
     "storage",
-    "scripting"
+    "scripting",
+    "sidePanel"
   ],
   "host_permissions": [
     "https://*.taobao.com/*",
@@ -21,8 +28,10 @@
     "https://detail.tmall.hk/*"
   ],
   "action": {
-    "default_popup": "popup.html",
-    "default_title": "淘宝评论助手"
+    "default_title": "打开淘宝评论助手"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
   },
   "content_scripts": [
     {
