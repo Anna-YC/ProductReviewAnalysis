@@ -13,85 +13,89 @@
       <span class="logo-icon">🛒</span>
       <div class="header-text">
         <h1>淘宝评论助手</h1>
-        <span class="version">v2.9.3</span>
+        <span class="version">v2.9.7</span>
       </div>
     </div>
-    <button id="toggleGuide" class="icon-btn" title="使用说明">❓</button>
+    <button id="toggleGuide" class="icon-btn" title="使用说明" aria-label="切换使用说明">
+      <span>❓</span>
+    </button>
   </header>
 
-  <!-- 使用说明（可折叠） -->
-  <div id="guidePanel" class="guide-panel collapsed">
+  <!-- 使用说明（默认收起 - 确定性优化） -->
+  <div id="guidePanel" class="guide-panel">
     <div class="guide-content">
+      <strong>快速开始：</strong>
       <ol>
-        <li>打开淘宝/天猫商品详情页</li>
-        <li>选择下方标签页（评论/问答）</li>
+        <li>在淘宝/天猫商品详情页</li>
+        <li>选择下方的"评论"或"问答"标签</li>
         <li>点击"开始提取"按钮</li>
-        <li>等待自动翻页完成</li>
-        <li>导出数据或一键分析</li>
+        <li>等待自动抓取完成</li>
+        <li>导出数据进行分析</li>
       </ol>
     </div>
   </div>
 
-  <!-- 状态区域 -->
-  <div id="statusCard" class="status-card">
+  <!-- 状态区域（优化版 - 更清晰的反馈） -->
+  <div id="statusCard" class="status-card ready">
     <div id="statusIcon" class="status-icon">🌐</div>
     <div class="status-info">
       <div id="statusTitle" class="status-title">准备就绪</div>
-      <div id="statusDesc" class="status-desc">请在商品详情页使用</div>
+      <div id="statusDesc" class="status-desc">请先访问商品详情页</div>
     </div>
   </div>
 
   <!-- 标签页导航 -->
-  <nav class="tab-nav">
-    <button class="tab-btn active" data-tab="reviews">
-      <span class="tab-icon">💬</span>
+  <nav class="tab-nav" role="tablist">
+    <button id="tabReviews" class="tab-btn active" data-tab="reviews" role="tab" aria-selected="true" aria-controls="tab-reviews">
+      <span class="tab-icon" aria-hidden="true">💬</span>
       <span>评论</span>
     </button>
-    <button class="tab-btn" data-tab="qa">
-      <span class="tab-icon">❓</span>
+    <button id="tabQa" class="tab-btn" data-tab="qa" role="tab" aria-selected="false" aria-controls="tab-qa">
+      <span class="tab-icon" aria-hidden="true">❓</span>
       <span>问答</span>
     </button>
   </nav>
 
   <!-- 评论提取面板 -->
-  <div id="tab-reviews" class="tab-panel active">
+  <div id="tab-reviews" class="tab-panel active" role="tabpanel" aria-labelledby="tabReviews">
     <div class="action-card">
       <div class="action-header">
         <span class="action-title">评论数据提取</span>
-        <span id="reviewCount" class="badge">0 条</span>
+        <span id="reviewCount" class="badge">0</span>
       </div>
-      
+
+      <!-- 主操作按钮组（优化版 - 互斥显示） -->
       <div class="action-buttons">
-        <button id="startBtn" class="btn btn-primary">
-          <span class="btn-icon">🚀</span>
+        <button id="startBtn" class="btn btn-primary" aria-label="开始提取评论">
+          <span class="btn-icon" aria-hidden="true">🚀</span>
           <span>开始提取</span>
         </button>
-        <button id="stopBtn" class="btn btn-warning" style="display:none;">
-          <span class="btn-icon">⏸</span>
+        <button id="stopBtn" class="btn btn-warning hidden" aria-label="停止提取评论">
+          <span class="btn-icon" aria-hidden="true">⏸</span>
           <span>停止提取</span>
         </button>
       </div>
 
-      <!-- 进度条 -->
+      <!-- 进度条（默认隐藏） -->
       <div id="progressContainer" class="progress-container">
         <div class="progress-info">
-          <span id="progressText">提取中...</span>
-          <span id="progressPercent">0%</span>
+          <span id="progressText">正在提取...</span>
+          <span id="progressPercent" class="progress-percent">0%</span>
         </div>
-        <div class="progress-bar">
+        <div class="progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
           <div id="progressFill" class="progress-fill"></div>
         </div>
-        <div id="progressDetail" class="progress-detail">滚动 0 次 | 0 条评论</div>
+        <div id="progressDetail" class="progress-detail" aria-live="polite">滚动 0 次 | 0 条评论</div>
       </div>
 
       <!-- 导出按钮组 -->
       <div class="export-group">
-        <button id="exportBtn" class="btn btn-secondary" disabled>
-          <span class="btn-icon">📥</span>
+        <button id="exportBtn" class="btn btn-secondary" disabled aria-label="导出评论数据">
+          <span class="btn-icon" aria-hidden="true">📥</span>
           <span>导出 CSV</span>
         </button>
-        <button id="analyzeBtn" class="btn btn-success" disabled>
-          <span class="btn-icon">📊</span>
+        <button id="analyzeBtn" class="btn btn-success" disabled aria-label="一键分析数据">
+          <span class="btn-icon" aria-hidden="true">📊</span>
           <span>一键分析</span>
         </button>
       </div>
@@ -99,20 +103,21 @@
   </div>
 
   <!-- 问大家面板 -->
-  <div id="tab-qa" class="tab-panel">
+  <div id="tab-qa" class="tab-panel" role="tabpanel" aria-labelledby="tabQa">
     <div class="action-card">
       <div class="action-header">
         <span class="action-title">问答数据提取</span>
-        <span id="qaCount" class="badge">0 条</span>
+        <span id="qaCount" class="badge">0</span>
       </div>
-      
+
+      <!-- 主操作按钮组 -->
       <div class="action-buttons">
-        <button id="startQaBtn" class="btn btn-primary">
-          <span class="btn-icon">🚀</span>
+        <button id="startQaBtn" class="btn btn-primary" aria-label="开始提取问答">
+          <span class="btn-icon" aria-hidden="true">🚀</span>
           <span>开始提取</span>
         </button>
-        <button id="stopQaBtn" class="btn btn-warning" style="display:none;">
-          <span class="btn-icon">⏸</span>
+        <button id="stopQaBtn" class="btn btn-warning hidden" aria-label="停止提取问答">
+          <span class="btn-icon" aria-hidden="true">⏸</span>
           <span>停止提取</span>
         </button>
       </div>
@@ -120,19 +125,19 @@
       <!-- 进度条 -->
       <div id="qaProgressContainer" class="progress-container">
         <div class="progress-info">
-          <span id="qaProgressText">提取中...</span>
-          <span id="qaProgressPercent">0%</span>
+          <span id="qaProgressText">正在提取...</span>
+          <span id="qaProgressPercent" class="progress-percent">0%</span>
         </div>
-        <div class="progress-bar">
+        <div class="progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
           <div id="qaProgressFill" class="progress-fill"></div>
         </div>
-        <div id="qaProgressDetail" class="progress-detail">滚动 0 次 | 0 个回答</div>
+        <div id="qaProgressDetail" class="progress-detail" aria-live="polite">滚动 0 次 | 0 个回答</div>
       </div>
 
       <!-- 导出按钮 -->
       <div class="export-group">
-        <button id="exportQaBtn" class="btn btn-secondary" disabled>
-          <span class="btn-icon">📥</span>
+        <button id="exportQaBtn" class="btn btn-secondary" disabled aria-label="导出问答数据">
+          <span class="btn-icon" aria-hidden="true">📥</span>
           <span>导出问答</span>
         </button>
       </div>
@@ -140,9 +145,9 @@
   </div>
 
   <!-- 分析提示 -->
-  <div id="analyzeTip" class="tip-card" style="display:none;">
+  <div id="analyzeTip" class="tip-card hidden" role="alert" aria-live="polite">
     <div class="tip-header">
-      <span class="tip-icon">✅</span>
+      <span class="tip-icon" aria-hidden="true">✅</span>
       <span class="tip-title">数据已保存</span>
     </div>
     <div class="tip-body">
@@ -150,7 +155,10 @@
       <code id="savedPath" class="code-block"></code>
       <p class="tip-command-title">运行命令生成报告：</p>
       <code id="commandBlock" class="code-block command"></code>
-      <button id="copyCommand" class="btn btn-small btn-outline">📋 复制命令</button>
+      <button id="copyCommand" class="btn btn-small btn-ghost" aria-label="复制命令">
+        <span class="btn-icon" aria-hidden="true">📋</span>
+        <span>复制命令</span>
+      </button>
     </div>
   </div>
 

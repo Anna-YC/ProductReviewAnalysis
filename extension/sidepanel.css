@@ -1,18 +1,32 @@
 /**
  * 淘宝评论助手 - 侧边栏样式
- * 现代卡片式设计，清爽简洁
+ * Phase 1: 确定性优化
+ *
+ * 优化内容：
+ * 1. 统一间距系统（8点栅格）
+ * 2. 按钮互斥显示优化
+ * 3. 状态反馈优化
+ * 4. 空状态提示
  */
 
-/* ==================== CSS 变量 ==================== */
+/* ==================== CSS 变量（优化版）==================== */
 :root {
+  /* 品牌色 */
   --primary: #ff5000;
   --primary-light: #ff6b35;
   --primary-dark: #e64a00;
   --success: #10b981;
+  --success-light: #34d399;
   --success-dark: #059669;
   --warning: #f59e0b;
+  --warning-light: #fbbf24;
   --warning-dark: #d97706;
   --danger: #ef4444;
+  --danger-light: #f87171;
+  --danger-dark: #dc2626;
+  --info: #3b82f6;
+
+  /* 灰度色 */
   --gray-50: #f9fafb;
   --gray-100: #f3f4f6;
   --gray-200: #e5e7eb;
@@ -23,18 +37,40 @@
   --gray-700: #374151;
   --gray-800: #1f2937;
   --gray-900: #111827;
-  
+
+  /* 间距系统 - 8点栅格统一 */
+  --space-1: 4px;    /* 0.5x - 极小间距 */
+  --space-2: 8px;    /* 1x - 小间距 */
+  --space-3: 12px;   /* 1.5x - 中等间距 */
+  --space-4: 16px;   /* 2x - 大间距 */
+  --space-5: 20px;   /* 2.5x - 超大间距 */
+  --space-6: 24px;   /* 3x - 特大间距 */
+
+  /* 圆角系统 - 统一 */
+  --radius-sm: 4px;  /* 小元素 */
+  --radius-md: 8px;  /* 按钮、输入框 */
+  --radius-lg: 12px; /* 卡片 */
+  --radius-xl: 16px; /* 大卡片 */
+  --radius-full: 9999px; /* 圆形元素 */
+
+  /* 阴影系统 */
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
-  
-  --radius-sm: 6px;
-  --radius: 10px;
-  --radius-lg: 14px;
-  --radius-xl: 20px;
-  
-  --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* 动画 */
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Z-index 层级 */
+  --z-dropdown: 1000;
+  --z-sticky: 1020;
+  --z-fixed: 1030;
+  --z-modal-backdrop: 1040;
+  --z-modal: 1050;
+  --z-tooltip: 1070;
 }
 
 /* ==================== 基础样式 ==================== */
@@ -61,18 +97,18 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 20px;
+  padding: var(--space-4) var(--space-5);
   background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
   color: white;
   position: sticky;
   top: 0;
-  z-index: 100;
+  z-index: var(--z-sticky);
 }
 
 .header-logo {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-3);
 }
 
 .logo-icon {
@@ -97,7 +133,7 @@ body {
   width: 32px;
   height: 32px;
   border: none;
-  border-radius: var(--radius);
+  border-radius: var(--radius-md);
   background: rgba(255,255,255,0.2);
   color: white;
   cursor: pointer;
@@ -113,23 +149,23 @@ body {
   transform: scale(1.05);
 }
 
-/* ==================== 使用说明面板 ==================== */
+/* ==================== 使用说明面板（优化版）==================== */
 .guide-panel {
   background: #fff;
   border-bottom: 1px solid var(--gray-200);
   overflow: hidden;
-  transition: max-height 0.3s ease, opacity 0.3s ease;
+  max-height: 0;
+  opacity: 0;
+  transition: max-height var(--transition-slow) ease, opacity var(--transition-slow) ease;
+}
+
+.guide-panel.expanded {
   max-height: 200px;
   opacity: 1;
 }
 
-.guide-panel.collapsed {
-  max-height: 0;
-  opacity: 0;
-}
-
 .guide-content {
-  padding: 16px 20px;
+  padding: var(--space-4) var(--space-5);
 }
 
 .guide-content ol {
@@ -140,7 +176,7 @@ body {
 }
 
 .guide-content li {
-  margin-bottom: 6px;
+  margin-bottom: var(--space-2);
   line-height: 1.6;
 }
 
@@ -148,58 +184,86 @@ body {
   margin-bottom: 0;
 }
 
-/* ==================== 状态卡片 ==================== */
+/* ==================== 状态卡片（优化版）==================== */
 .status-card {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin: 16px 20px;
-  padding: 14px 16px;
+  gap: var(--space-3);
+  margin: var(--space-4) var(--space-5);
+  padding: var(--space-3) var(--space-4);
   background: #fff;
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow);
   border: 1px solid var(--gray-100);
   transition: var(--transition);
+  position: relative;
 }
 
-.status-card.success {
-  border-color: var(--success);
-  background: linear-gradient(135deg, #ecfdf5 0%, #fff 100%);
+/* 状态指示点 */
+.status-card::before {
+  content: '';
+  position: absolute;
+  left: var(--space-3);
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: var(--radius-full);
+  background: var(--gray-300);
+  transition: var(--transition);
 }
 
-.status-card.error {
-  border-color: var(--danger);
-  background: linear-gradient(135deg, #fef2f2 0%, #fff 100%);
+.status-card.ready::before {
+  background: var(--success);
 }
 
-.status-card.loading {
-  border-color: #3b82f6;
-  background: linear-gradient(135deg, #eff6ff 0%, #fff 100%);
+.status-card.working::before {
+  background: var(--info);
+  animation: pulse-dot 1.5s infinite;
 }
 
+.status-card.error::before {
+  background: var(--danger);
+}
+
+.status-card.success::before {
+  background: var(--success);
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* 状态图标（优化版 - 更小巧） */
 .status-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: var(--radius);
-  background: linear-gradient(135deg, var(--gray-100) 0%, var(--gray-200) 100%);
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  background: var(--gray-100);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 18px;
+  font-size: 16px;
   flex-shrink: 0;
+  transition: var(--transition);
 }
 
-.status-card.success .status-icon {
-  background: linear-gradient(135deg, var(--success) 0%, var(--success-dark) 100%);
+.status-card.ready .status-icon {
+  background: linear-gradient(135deg, var(--success) 0%, var(--success-light) 100%);
+}
+
+.status-card.working .status-icon {
+  background: linear-gradient(135deg, var(--info) 0%, #60a5fa 100%);
+  animation: pulse 2s infinite;
 }
 
 .status-card.error .status-icon {
-  background: linear-gradient(135deg, var(--danger) 0%, #dc2626 100%);
+  background: linear-gradient(135deg, var(--danger) 0%, var(--danger-light) 100%);
 }
 
-.status-card.loading .status-icon {
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-  animation: pulse 2s infinite;
+.status-card.success .status-icon {
+  background: linear-gradient(135deg, var(--success) 0%, var(--success-light) 100%);
 }
 
 @keyframes pulse {
@@ -207,32 +271,38 @@ body {
   50% { opacity: 0.7; }
 }
 
+/* 状态信息（优化版 - 更清晰） */
 .status-info {
   flex: 1;
   min-width: 0;
+  padding-left: var(--space-2);
 }
 
 .status-title {
   font-weight: 600;
   font-size: 14px;
   color: var(--gray-800);
-  margin-bottom: 2px;
+  margin-bottom: var(--space-1);
+  line-height: 1.4;
 }
 
 .status-desc {
   font-size: 12px;
   color: var(--gray-500);
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
   text-overflow: ellipsis;
+  line-height: 1.4;
 }
 
 /* ==================== 标签页导航 ==================== */
 .tab-nav {
   display: flex;
-  gap: 8px;
-  padding: 0 20px;
-  margin-bottom: 12px;
+  gap: var(--space-2);
+  padding: 0 var(--space-5);
+  margin-bottom: var(--space-3);
 }
 
 .tab-btn {
@@ -240,16 +310,17 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 10px 12px;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
   border: none;
-  border-radius: var(--radius);
+  border-radius: var(--radius-md);
   background: var(--gray-100);
   color: var(--gray-600);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   transition: var(--transition);
+  position: relative;
 }
 
 .tab-btn:hover {
@@ -270,8 +341,8 @@ body {
 /* ==================== 标签页内容 ==================== */
 .tab-panel {
   display: none;
-  padding: 0 20px;
-  animation: fadeIn 0.3s ease;
+  padding: 0 var(--space-5);
+  animation: fadeIn var(--transition-slow) ease;
 }
 
 .tab-panel.active {
@@ -279,7 +350,7 @@ body {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
+  from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
@@ -287,7 +358,7 @@ body {
 .action-card {
   background: #fff;
   border-radius: var(--radius-lg);
-  padding: 16px;
+  padding: var(--space-4);
   box-shadow: var(--shadow);
   border: 1px solid var(--gray-100);
 }
@@ -296,7 +367,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 14px;
+  margin-bottom: var(--space-3);
 }
 
 .action-title {
@@ -305,14 +376,17 @@ body {
   color: var(--gray-800);
 }
 
+/* Badge（优化版 - 更清晰） */
 .badge {
-  padding: 4px 10px;
+  padding: var(--space-1) var(--space-2);
   background: var(--gray-100);
   color: var(--gray-600);
   font-size: 11px;
   font-weight: 600;
-  border-radius: 20px;
+  border-radius: var(--radius-full);
   transition: var(--transition);
+  min-width: 40px;
+  text-align: center;
 }
 
 .badge.active {
@@ -320,33 +394,66 @@ body {
   color: white;
 }
 
-/* ==================== 按钮样式 ==================== */
+/* ==================== 按钮系统（优化版 - 确定性）==================== */
 .action-buttons {
+  position: relative;
+  margin-bottom: var(--space-3);
+}
+
+/* 统一按钮容器 */
+.btn-container {
   display: flex;
-  gap: 10px;
-  margin-bottom: 14px;
+  gap: var(--space-2);
 }
 
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 10px 16px;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
   border: none;
-  border-radius: var(--radius);
+  border-radius: var(--radius-md);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   transition: var(--transition);
   flex: 1;
+  height: 40px;
+  position: relative;
+  overflow: hidden;
 }
 
+/* 按钮点击反馈 */
+.btn::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  transform: translate(-50%, -50%);
+  transition: width 0.3s ease, height 0.3s ease;
+}
+
+.btn:active::before {
+  width: 200px;
+  height: 200px;
+}
+
+/* 禁用状态 */
 .btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
+.btn:disabled::before {
+  display: none;
+}
+
+/* 主按钮 */
 .btn-primary {
   background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
   color: white;
@@ -359,8 +466,9 @@ body {
   transform: translateY(-1px);
 }
 
+/* 警告按钮（停止） */
 .btn-warning {
-  background: linear-gradient(135deg, var(--warning) 0%, #fbbf24 100%);
+  background: linear-gradient(135deg, var(--warning) 0%, var(--warning-light) 100%);
   color: white;
   box-shadow: 0 2px 8px rgba(245, 158, 11, 0.25);
   animation: pulse-warning 2s infinite;
@@ -371,6 +479,7 @@ body {
   50% { box-shadow: 0 4px 16px rgba(245, 158, 11, 0.4); }
 }
 
+/* 次要按钮 */
 .btn-secondary {
   background: var(--gray-100);
   color: var(--gray-700);
@@ -382,64 +491,101 @@ body {
   border-color: var(--gray-300);
 }
 
+/* 成功按钮 */
 .btn-success {
-  background: linear-gradient(135deg, var(--success) 0%, var(--success-dark) 100%);
+  background: linear-gradient(135deg, var(--success) 0%, var(--success-light) 100%);
   color: white;
   box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);
 }
 
 .btn-success:hover:not(:disabled) {
-  background: linear-gradient(135deg, var(--success-dark) 0%, #047857 100%);
+  background: linear-gradient(135deg, var(--success-dark) 0%, var(--success) 100%);
   box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35);
   transform: translateY(-1px);
 }
 
-.btn-outline {
+/* 幽灵按钮（用于次要操作） */
+.btn-ghost {
   background: transparent;
-  border: 1px solid var(--gray-300);
   color: var(--gray-600);
+  border: 1px solid transparent;
 }
 
-.btn-outline:hover {
+.btn-ghost:hover {
   background: var(--gray-50);
-  border-color: var(--gray-400);
+  border-color: var(--gray-200);
 }
 
+/* 小按钮 */
 .btn-small {
-  padding: 6px 12px;
+  padding: var(--space-1) var(--space-3);
   font-size: 12px;
+  height: 28px;
 }
 
+/* 按钮图标 */
 .btn-icon {
   font-size: 14px;
 }
 
-/* ==================== 进度条 ==================== */
+/* 加载状态 */
+.btn.loading {
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+.btn.loading .btn-icon {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ==================== 进度条（优化版）==================== */
 .progress-container {
   display: none;
-  margin-bottom: 14px;
-  padding: 12px;
+  margin-bottom: var(--space-3);
+  padding: var(--space-3);
   background: var(--gray-50);
-  border-radius: var(--radius);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--gray-200);
 }
 
 .progress-container.active {
   display: block;
-  animation: slideDown 0.3s ease;
+  animation: slideDown var(--transition) ease;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .progress-info {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 8px;
+  margin-bottom: var(--space-2);
   font-size: 12px;
   font-weight: 500;
+}
+
+.progress-percent {
+  color: var(--primary);
+  font-weight: 600;
 }
 
 .progress-bar {
   height: 6px;
   background: var(--gray-200);
-  border-radius: 3px;
+  border-radius: var(--radius-full);
   overflow: hidden;
 }
 
@@ -448,7 +594,7 @@ body {
   width: 0%;
   background: linear-gradient(90deg, var(--primary) 0%, var(--primary-light) 50%, var(--primary) 100%);
   background-size: 200% 100%;
-  border-radius: 3px;
+  border-radius: var(--radius-full);
   transition: width 0.3s ease;
   animation: shimmer 2s infinite;
 }
@@ -459,7 +605,7 @@ body {
 }
 
 .progress-detail {
-  margin-top: 8px;
+  margin-top: var(--space-2);
   font-size: 11px;
   color: var(--gray-500);
   text-align: center;
@@ -468,16 +614,40 @@ body {
 /* ==================== 导出按钮组 ==================== */
 .export-group {
   display: flex;
-  gap: 10px;
+  gap: var(--space-2);
 }
 
 .export-group .btn {
   flex: 1;
 }
 
+/* ==================== 空状态（新增）==================== */
+.empty-state {
+  padding: var(--space-6) var(--space-4);
+  text-align: center;
+  color: var(--gray-400);
+}
+
+.empty-state-icon {
+  font-size: 48px;
+  margin-bottom: var(--space-3);
+  opacity: 0.5;
+}
+
+.empty-state-text {
+  font-size: 13px;
+  color: var(--gray-500);
+  margin-bottom: var(--space-2);
+}
+
+.empty-state-hint {
+  font-size: 11px;
+  color: var(--gray-400);
+}
+
 /* ==================== 提示卡片 ==================== */
 .tip-card {
-  margin: 16px 20px;
+  margin: var(--space-4) var(--space-5);
   background: linear-gradient(135deg, #ecfdf5 0%, #fff 100%);
   border: 1px solid #a7f3d0;
   border-radius: var(--radius-lg);
@@ -485,16 +655,11 @@ body {
   animation: slideDown 0.4s ease;
 }
 
-@keyframes slideDown {
-  from { opacity: 0; transform: translateY(-20px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
 .tip-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 12px 16px;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
   background: rgba(16, 185, 129, 0.1);
   border-bottom: 1px solid rgba(16, 185, 129, 0.2);
 }
@@ -510,24 +675,24 @@ body {
 }
 
 .tip-body {
-  padding: 14px 16px;
+  padding: var(--space-3) var(--space-4);
 }
 
 .tip-body p {
   font-size: 12px;
   color: var(--gray-600);
-  margin-bottom: 8px;
+  margin-bottom: var(--space-2);
 }
 
 .tip-command-title {
-  margin-top: 12px;
+  margin-top: var(--space-3);
   font-weight: 500;
   color: var(--gray-700);
 }
 
 .code-block {
   display: block;
-  padding: 10px 12px;
+  padding: var(--space-2) var(--space-3);
   background: var(--gray-800);
   color: #e5e7eb;
   font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
@@ -535,7 +700,7 @@ body {
   border-radius: var(--radius-sm);
   word-break: break-all;
   line-height: 1.5;
-  margin-bottom: 10px;
+  margin-bottom: var(--space-2);
 }
 
 .code-block.command {
@@ -546,25 +711,25 @@ body {
 
 /* ==================== 页脚 ==================== */
 .footer {
-  margin-top: 20px;
-  padding: 16px 20px 24px;
+  margin-top: var(--space-5);
+  padding: var(--space-4) var(--space-5) var(--space-6);
   text-align: center;
 }
 
 .platform-tags {
   display: flex;
   justify-content: center;
-  gap: 8px;
-  margin-bottom: 12px;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
 }
 
 .tag {
-  padding: 4px 10px;
+  padding: var(--space-1) var(--space-2);
   background: var(--gray-100);
   color: var(--gray-500);
   font-size: 11px;
   font-weight: 500;
-  border-radius: 20px;
+  border-radius: var(--radius-full);
 }
 
 .copyright {
@@ -583,7 +748,7 @@ body {
 
 ::-webkit-scrollbar-thumb {
   background: var(--gray-300);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
 }
 
 ::-webkit-scrollbar-thumb:hover {
@@ -595,29 +760,20 @@ body {
   body {
     font-size: 12px;
   }
-  
+
   .header-text h1 {
     font-size: 14px;
   }
-  
+
   .tab-btn {
     font-size: 12px;
-    padding: 8px 10px;
+    padding: var(--space-2);
   }
-  
+
   .btn {
     font-size: 12px;
-    padding: 8px 12px;
+    padding: var(--space-2) var(--space-3);
   }
-}
-
-/* ==================== 动画类 ==================== */
-.fade-in {
-  animation: fadeIn 0.3s ease;
-}
-
-.slide-down {
-  animation: slideDown 0.3s ease;
 }
 
 /* ==================== 工具类 ==================== */
@@ -625,11 +781,25 @@ body {
   display: none !important;
 }
 
-.text-center {
-  text-align: center;
+.fade-in {
+  animation: fadeIn var(--transition-slow) ease;
 }
 
-.mt-1 { margin-top: 8px; }
-.mt-2 { margin-top: 16px; }
-.mb-1 { margin-bottom: 8px; }
-.mb-2 { margin-bottom: 16px; }
+/* ==================== 无障碍支持 ==================== */
+.btn:focus-visible,
+.tab-btn:focus-visible,
+.icon-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* 减少动画（用户偏好设置） */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

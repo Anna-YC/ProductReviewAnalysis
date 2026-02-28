@@ -1,9 +1,15 @@
 /**
  * 淘宝评论助手 - 侧边栏交互脚本
- * 版本 2.9.3 - Side Panel 版
+ * Phase 1: 确定性优化版本
+ *
+ * 优化内容：
+ * 1. 按钮互斥显示（使用 hidden 类）
+ * 2. 使用说明默认收起
+ * 3. 更清晰的状态反馈
+ * 4. 空状态处理
  */
 
-console.log('🛒 淘宝评论助手 SidePanel 已加载');
+console.log('🛒 淘宝评论助手 SidePanel 已加载 - v2.9.7 确定性优化版');
 
 // ==================== 配置 ====================
 const CONFIG = window.REVIEW_HELPER_CONFIG || {
@@ -102,32 +108,42 @@ function cacheElements() {
 
 // ==================== 事件绑定 ====================
 function bindEvents() {
-  // 指南折叠
+  // 指南折叠（确定性优化：默认收起，使用 expanded 类控制）
   elements.toggleGuide.addEventListener('click', () => {
-    elements.guidePanel.classList.toggle('collapsed');
+    const isExpanded = elements.guidePanel.classList.contains('expanded');
+    if (isExpanded) {
+      elements.guidePanel.classList.remove('expanded');
+      elements.toggleGuide.setAttribute('aria-expanded', 'false');
+    } else {
+      elements.guidePanel.classList.add('expanded');
+      elements.toggleGuide.setAttribute('aria-expanded', 'true');
+    }
   });
-  
-  // 标签页切换
+
+  // 标签页切换（添加 ARIA 支持）
   elements.tabBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       const tabId = btn.dataset.tab;
       switchTab(tabId);
     });
   });
-  
+
   // 评论按钮
   elements.startBtn.addEventListener('click', startExtraction);
   elements.stopBtn.addEventListener('click', stopExtraction);
   elements.exportBtn.addEventListener('click', exportReviews);
   elements.analyzeBtn.addEventListener('click', analyzeReviews);
-  
+
   // 问答按钮
   elements.startQaBtn.addEventListener('click', startQaExtraction);
   elements.stopQaBtn.addEventListener('click', stopQaExtraction);
   elements.exportQaBtn.addEventListener('click', exportQaData);
-  
+
   // 复制命令
   elements.copyCommand.addEventListener('click', copyCommand);
+
+  // 首次访问检查（确定性优化：首次访问自动展开使用说明）
+  checkFirstVisit();
 }
 
 // ==================== 标签页切换 ====================
@@ -176,22 +192,21 @@ async function checkCanExtract(tab) {
 // ==================== 评论提取 ====================
 async function startExtraction() {
   if (isExtracting) return;
-  
+
   // 重置状态
   collectedReviews = [];
   elements.analyzeTip.style.display = 'none';
-  
+
   isExtracting = true;
   scrollCount = 0;
-  
-  // 更新 UI
-  elements.startBtn.style.display = 'none';
-  elements.stopBtn.style.display = 'flex';
+
+  // 确定性优化：使用新的按钮切换函数
+  toggleActionButton('reviews', 'stop');
   elements.exportBtn.disabled = true;
   elements.analyzeBtn.disabled = true;
   elements.progressContainer.classList.add('active');
   elements.reviewCount.classList.add('active');
-  
+
   updateStatus('loading', '正在提取评论...', '定位到评论区，请稍候');
   
   // 超时检测
@@ -226,20 +241,22 @@ async function startExtraction() {
 
 function finishExtraction(message, count, success) {
   isExtracting = false;
-  elements.startBtn.style.display = 'flex';
-  elements.stopBtn.style.display = 'none';
+
+  // 确定性优化：使用新的按钮切换函数
+  toggleActionButton('reviews', 'start');
   elements.progressContainer.classList.remove('active');
   elements.reviewCount.classList.remove('active');
-  
+
   if (success && count !== null) {
     updateStatus('success', `提取完成！共 ${count} 条评论`, '可以导出或分析数据');
-    elements.exportBtn.disabled = false;
-    elements.analyzeBtn.disabled = false;
     elements.reviewCount.textContent = `${count} 条`;
+    elements.reviewCount.classList.add('active');
+    updateButtonStates('reviews', false, true);
   } else {
     updateStatus('error', message || '提取失败', '请检查页面后重试');
+    updateButtonStates('reviews', false, false);
   }
-  
+
   fetchCollectedData();
 }
 
@@ -247,10 +264,15 @@ async function stopExtraction() {
   try {
     await chrome.tabs.sendMessage(currentTabId, { action: 'stop' });
     isExtracting = false;
-    elements.startBtn.style.display = 'flex';
-    elements.stopBtn.style.display = 'none';
+
+    // 确定性优化：使用新的按钮切换函数
+    toggleActionButton('reviews', 'start');
     updateStatus('success', '已停止提取', '已保存已提取的数据');
+
     await fetchCollectedData();
+
+    // 根据是否有数据启用/禁用按钮
+    updateButtonStates('reviews', false, collectedReviews.length > 0);
   } catch (error) {
     updateStatus('error', '停止失败', error.message);
   }
@@ -259,17 +281,17 @@ async function stopExtraction() {
 // ==================== 问答提取 ====================
 async function startQaExtraction() {
   if (isExtractingQa) return;
-  
+
   collectedQaData = [];
   isExtractingQa = true;
   qaScrollCount = 0;
-  
-  elements.startQaBtn.style.display = 'none';
-  elements.stopQaBtn.style.display = 'flex';
+
+  // 确定性优化：使用新的按钮切换函数
+  toggleActionButton('qa', 'stop');
   elements.exportQaBtn.disabled = true;
   elements.qaProgressContainer.classList.add('active');
   elements.qaCount.classList.add('active');
-  
+
   updateStatus('loading', '正在提取问答...', '定位到问大家页面');
   
   const timeoutId = setTimeout(() => {
@@ -303,19 +325,22 @@ async function startQaExtraction() {
 
 function finishQaExtraction(message, count, success) {
   isExtractingQa = false;
-  elements.startQaBtn.style.display = 'flex';
-  elements.stopQaBtn.style.display = 'none';
+
+  // 确定性优化：使用新的按钮切换函数
+  toggleActionButton('qa', 'start');
   elements.qaProgressContainer.classList.remove('active');
   elements.qaCount.classList.remove('active');
-  
+
   if (success && count !== null) {
     updateStatus('success', `提取完成！共 ${count} 个回答`, '可以导出数据');
-    elements.exportQaBtn.disabled = false;
     elements.qaCount.textContent = `${count} 条`;
+    elements.qaCount.classList.add('active');
+    updateButtonStates('qa', false, true);
   } else {
     updateStatus('error', message || '提取失败', '请检查页面后重试');
+    updateButtonStates('qa', false, false);
   }
-  
+
   fetchCollectedQaData();
 }
 
@@ -323,10 +348,15 @@ async function stopQaExtraction() {
   try {
     await chrome.tabs.sendMessage(currentTabId, { action: 'stopQa' });
     isExtractingQa = false;
-    elements.startQaBtn.style.display = 'flex';
-    elements.stopQaBtn.style.display = 'none';
+
+    // 确定性优化：使用新的按钮切换函数
+    toggleActionButton('qa', 'start');
     updateStatus('success', '已停止提取', '已保存已提取的数据');
+
     await fetchCollectedQaData();
+
+    // 根据是否有数据启用/禁用按钮
+    updateButtonStates('qa', false, collectedQaData.length > 0);
   } catch (error) {
     updateStatus('error', '停止失败', error.message);
   }
@@ -583,6 +613,101 @@ function updateQaProgress(count, scroll) {
   elements.qaProgressFill.style.width = `${percent}%`;
   elements.qaProgressPercent.textContent = `${Math.round(percent)}%`;
   elements.qaProgressDetail.textContent = `滚动 ${scroll} 次 | ${count} 个回答`;
+}
+
+// ==================== 确定性优化：按钮切换 ====================
+/**
+ * 切换开始/停止按钮的显示（使用 hidden 类）
+ * @param {string} type - 'reviews' 或 'qa'
+ * @param {string} action - 'start' 或 'stop'
+ */
+function toggleActionButton(type, action) {
+  if (type === 'reviews') {
+    if (action === 'start') {
+      elements.startBtn.classList.remove('hidden');
+      elements.stopBtn.classList.add('hidden');
+    } else {
+      elements.startBtn.classList.add('hidden');
+      elements.stopBtn.classList.remove('hidden');
+    }
+  } else if (type === 'qa') {
+    if (action === 'start') {
+      elements.startQaBtn.classList.remove('hidden');
+      elements.stopQaBtn.classList.add('hidden');
+    } else {
+      elements.startQaBtn.classList.add('hidden');
+      elements.stopQaBtn.classList.remove('hidden');
+    }
+  }
+}
+
+/**
+ * 检查是否首次访问（确定性优化）
+ * 首次访问自动展开使用说明
+ */
+function checkFirstVisit() {
+  const STORAGE_KEY = 'taobao-helper-has-visited';
+
+  chrome.storage.local.get(STORAGE_KEY, (result) => {
+    const hasVisited = result[STORAGE_KEY];
+
+    if (!hasVisited) {
+      // 首次访问，展开使用说明
+      elements.guidePanel.classList.add('expanded');
+      elements.toggleGuide.setAttribute('aria-expanded', 'true');
+
+      // 标记已访问
+      chrome.storage.local.set({ [STORAGE_KEY]: true });
+    } else {
+      // 已访问过，保持收起状态
+      elements.guidePanel.classList.remove('expanded');
+      elements.toggleGuide.setAttribute('aria-expanded', 'false');
+    }
+  });
+}
+
+/**
+ * 更新按钮状态（确定性优化）
+ * @param {string} type - 'reviews' 或 'qa'
+ * @param {boolean} isWorking - 是否正在工作中
+ * @param {boolean} hasData - 是否有数据
+ */
+function updateButtonStates(type, isWorking, hasData) {
+  if (type === 'reviews') {
+    // 开始/停止按钮
+    toggleActionButton('reviews', isWorking ? 'stop' : 'start');
+
+    // 导出按钮
+    elements.exportBtn.disabled = !hasData;
+
+    // 分析按钮
+    elements.analyzeBtn.disabled = !hasData;
+
+    // 更新按钮类名以显示加载状态
+    if (isWorking) {
+      elements.startBtn.classList.add('loading');
+    } else {
+      elements.startBtn.classList.remove('loading');
+    }
+  } else if (type === 'qa') {
+    toggleActionButton('qa', isWorking ? 'stop' : 'start');
+    elements.exportQaBtn.disabled = !hasData;
+
+    if (isWorking) {
+      elements.startQaBtn.classList.add('loading');
+    } else {
+      elements.startQaBtn.classList.remove('loading');
+    }
+  }
+}
+
+/**
+ * 显示空状态（确定性优化）
+ * @param {string} type - 'reviews' 或 'qa'
+ */
+function showEmptyState(type) {
+  // 如果没有数据，可以在这里显示空状态提示
+  console.log(`📭 ${type} 暂无数据`);
 }
 
 // ==================== 消息监听 ====================
