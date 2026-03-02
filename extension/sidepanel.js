@@ -41,13 +41,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   bindEvents();
   
   // 获取当前标签页
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  const tab = await getActiveTab();
   if (!tab) {
     updateStatus('error', '无法获取当前标签页', '请刷新页面重试');
     return;
   }
-  
-  currentTabId = tab.id;
+
   console.log('当前标签页:', tab.id, tab.url);
   
   // 检查页面是否支持
@@ -108,14 +107,14 @@ function cacheElements() {
 
 // ==================== 事件绑定 ====================
 function bindEvents() {
-  // 指南折叠（确定性优化：默认收起，使用 expanded 类控制）
+  // 指南折叠（确定性优化：默认收起，使用 guide-panel--expanded 变体类控制）
   elements.toggleGuide.addEventListener('click', () => {
-    const isExpanded = elements.guidePanel.classList.contains('expanded');
+    const isExpanded = elements.guidePanel.classList.contains('guide-panel--expanded');
     if (isExpanded) {
-      elements.guidePanel.classList.remove('expanded');
+      elements.guidePanel.classList.remove('guide-panel--expanded');
       elements.toggleGuide.setAttribute('aria-expanded', 'false');
     } else {
-      elements.guidePanel.classList.add('expanded');
+      elements.guidePanel.classList.add('guide-panel--expanded');
       elements.toggleGuide.setAttribute('aria-expanded', 'true');
     }
   });
@@ -146,33 +145,55 @@ function bindEvents() {
   checkFirstVisit();
 }
 
+// ==================== 标签页工具 ====================
+async function getActiveTab() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (tab && tab.id) {
+    currentTabId = tab.id;
+  }
+  return tab || null;
+}
+
+async function wait(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 // ==================== 标签页切换 ====================
 function switchTab(tabId) {
-  // 更新按钮状态
+  // 更新按钮状态与无障碍属性
   elements.tabBtns.forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.tab === tabId);
+    const isActive = btn.dataset.tab === tabId;
+    btn.classList.toggle('tab-btn--active', isActive);
+    btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
   });
-  
-  // 更新面板显示
+
+  // 更新面板显示与无障碍属性
   elements.tabPanels.forEach(panel => {
-    panel.classList.toggle('active', panel.id === `tab-${tabId}`);
+    const isActive = panel.id === `tab-${tabId}`;
+    panel.classList.toggle('tab-panel--active', isActive);
+    panel.setAttribute('aria-hidden', isActive ? 'false' : 'true');
   });
 }
 
 // ==================== 状态更新 ====================
 function updateStatus(type, title, desc = '') {
+  const statusClassMap = {
+    success: 'status-card--success',
+    error: 'status-card--error',
+    loading: 'status-card--working',
+    '': 'status-card--ready'
+  };
+
   elements.statusCard.className = 'status-card';
-  if (type) {
-    elements.statusCard.classList.add(type);
-  }
-  
+  elements.statusCard.classList.add(statusClassMap[type] || statusClassMap['']);
+
   const icons = {
     success: '✅',
     error: '❌',
     loading: '🔄',
     '': '🌐'
   };
-  
+
   elements.statusIcon.textContent = icons[type] || icons[''];
   elements.statusTitle.textContent = title;
   elements.statusDesc.textContent = desc;
@@ -180,13 +201,29 @@ function updateStatus(type, title, desc = '') {
 
 // ==================== 检查页面 ====================
 async function checkCanExtract(tab) {
-  try {
-    const result = await chrome.tabs.sendMessage(tab.id, { action: 'checkPage' });
-    return result && result.canExtract;
-  } catch (error) {
-    console.warn('无法与 content script 通信:', error);
-    return false;
+  const delays = [0, 200, 500];
+
+  for (let i = 0; i < delays.length; i++) {
+    try {
+      if (delays[i] > 0) {
+        await wait(delays[i]);
+      }
+      const result = await chrome.tabs.sendMessage(tab.id, { action: 'checkPage' });
+      return Boolean(result && result.canExtract);
+    } catch (error) {
+      console.warn(`checkPage 通信失败(第 ${i + 1} 次):`, error);
+    }
   }
+
+  return false;
+}
+
+async function sendMessageToActiveTab(message) {
+  const tab = await getActiveTab();
+  if (!tab || !tab.id) {
+    throw new Error('无法获取当前标签页');
+  }
+  return chrome.tabs.sendMessage(tab.id, message);
 }
 
 // ==================== 评论提取 ====================
@@ -195,7 +232,7 @@ async function startExtraction() {
 
   // 重置状态
   collectedReviews = [];
-  elements.analyzeTip.style.display = 'none';
+  elements.analyzeTip.classList.add('hidden');
 
   isExtracting = true;
   scrollCount = 0;
@@ -204,8 +241,8 @@ async function startExtraction() {
   toggleActionButton('reviews', 'stop');
   elements.exportBtn.disabled = true;
   elements.analyzeBtn.disabled = true;
-  elements.progressContainer.classList.add('active');
-  elements.reviewCount.classList.add('active');
+  elements.progressContainer.classList.add('progress-container--active');
+  elements.reviewCount.classList.add('badge--active');
 
   updateStatus('loading', '正在提取评论...', '定位到评论区，请稍候');
   
@@ -217,8 +254,8 @@ async function startExtraction() {
   }, CONFIG.EXTRACTION_TIMEOUT);
   
   try {
-    await chrome.tabs.sendMessage(currentTabId, { action: 'setProgressCallback' });
-    const response = await chrome.tabs.sendMessage(currentTabId, { action: 'extract' });
+    await sendMessageToActiveTab({ action: 'setProgressCallback' });
+    const response = await sendMessageToActiveTab({ action: 'extract' });
     
     clearTimeout(timeoutId);
     
@@ -244,13 +281,13 @@ function finishExtraction(message, count, success) {
 
   // 确定性优化：使用新的按钮切换函数
   toggleActionButton('reviews', 'start');
-  elements.progressContainer.classList.remove('active');
-  elements.reviewCount.classList.remove('active');
+  elements.progressContainer.classList.remove('progress-container--active');
+  elements.reviewCount.classList.remove('badge--active');
 
   if (success && count !== null) {
     updateStatus('success', `提取完成！共 ${count} 条评论`, '可以导出或分析数据');
     elements.reviewCount.textContent = `${count} 条`;
-    elements.reviewCount.classList.add('active');
+    elements.reviewCount.classList.add('badge--active');
     updateButtonStates('reviews', false, true);
   } else {
     updateStatus('error', message || '提取失败', '请检查页面后重试');
@@ -262,7 +299,7 @@ function finishExtraction(message, count, success) {
 
 async function stopExtraction() {
   try {
-    await chrome.tabs.sendMessage(currentTabId, { action: 'stop' });
+    await sendMessageToActiveTab({ action: 'stop' });
     isExtracting = false;
 
     // 确定性优化：使用新的按钮切换函数
@@ -289,8 +326,8 @@ async function startQaExtraction() {
   // 确定性优化：使用新的按钮切换函数
   toggleActionButton('qa', 'stop');
   elements.exportQaBtn.disabled = true;
-  elements.qaProgressContainer.classList.add('active');
-  elements.qaCount.classList.add('active');
+  elements.qaProgressContainer.classList.add('progress-container--active');
+  elements.qaCount.classList.add('badge--active');
 
   updateStatus('loading', '正在提取问答...', '定位到问大家页面');
   
@@ -301,8 +338,8 @@ async function startQaExtraction() {
   }, CONFIG.EXTRACTION_TIMEOUT);
   
   try {
-    await chrome.tabs.sendMessage(currentTabId, { action: 'setQaProgressCallback' });
-    const response = await chrome.tabs.sendMessage(currentTabId, { action: 'extractQa' });
+    await sendMessageToActiveTab({ action: 'setQaProgressCallback' });
+    const response = await sendMessageToActiveTab({ action: 'extractQa' });
     
     clearTimeout(timeoutId);
     
@@ -328,13 +365,13 @@ function finishQaExtraction(message, count, success) {
 
   // 确定性优化：使用新的按钮切换函数
   toggleActionButton('qa', 'start');
-  elements.qaProgressContainer.classList.remove('active');
-  elements.qaCount.classList.remove('active');
+  elements.qaProgressContainer.classList.remove('progress-container--active');
+  elements.qaCount.classList.remove('badge--active');
 
   if (success && count !== null) {
     updateStatus('success', `提取完成！共 ${count} 个回答`, '可以导出数据');
     elements.qaCount.textContent = `${count} 条`;
-    elements.qaCount.classList.add('active');
+    elements.qaCount.classList.add('badge--active');
     updateButtonStates('qa', false, true);
   } else {
     updateStatus('error', message || '提取失败', '请检查页面后重试');
@@ -346,7 +383,7 @@ function finishQaExtraction(message, count, success) {
 
 async function stopQaExtraction() {
   try {
-    await chrome.tabs.sendMessage(currentTabId, { action: 'stopQa' });
+    await sendMessageToActiveTab({ action: 'stopQa' });
     isExtractingQa = false;
 
     // 确定性优化：使用新的按钮切换函数
@@ -365,7 +402,7 @@ async function stopQaExtraction() {
 // ==================== 数据获取 ====================
 async function fetchCollectedData() {
   try {
-    const response = await chrome.tabs.sendMessage(currentTabId, { action: 'getData' });
+    const response = await sendMessageToActiveTab({ action: 'getData' });
     if (response && response.success) {
       collectedReviews = response.data || [];
       elements.reviewCount.textContent = `${collectedReviews.length} 条`;
@@ -381,7 +418,7 @@ async function fetchCollectedData() {
 
 async function fetchCollectedQaData() {
   try {
-    const response = await chrome.tabs.sendMessage(currentTabId, { action: 'getQaData' });
+    const response = await sendMessageToActiveTab({ action: 'getQaData' });
     if (response && response.success) {
       collectedQaData = response.data || [];
       elements.qaCount.textContent = `${collectedQaData.length} 条`;
@@ -538,7 +575,7 @@ async function analyzeReviews() {
     
     elements.savedPath.textContent = savedPath;
     elements.commandBlock.textContent = command;
-    elements.analyzeTip.style.display = 'block';
+    elements.analyzeTip.classList.remove('hidden');
     
     updateStatus('success', '数据已保存', '运行命令生成分析报告');
     
@@ -605,6 +642,11 @@ function updateProgress(count, scroll) {
   elements.progressFill.style.width = `${percent}%`;
   elements.progressPercent.textContent = `${Math.round(percent)}%`;
   elements.progressDetail.textContent = `滚动 ${scroll} 次 | ${count} 条评论`;
+
+  const progressBar = elements.progressFill.closest('.progress-container__bar');
+  if (progressBar) {
+    progressBar.setAttribute('aria-valuenow', String(Math.round(percent)));
+  }
 }
 
 function updateQaProgress(count, scroll) {
@@ -613,6 +655,11 @@ function updateQaProgress(count, scroll) {
   elements.qaProgressFill.style.width = `${percent}%`;
   elements.qaProgressPercent.textContent = `${Math.round(percent)}%`;
   elements.qaProgressDetail.textContent = `滚动 ${scroll} 次 | ${count} 个回答`;
+
+  const progressBar = elements.qaProgressFill.closest('.progress-container__bar');
+  if (progressBar) {
+    progressBar.setAttribute('aria-valuenow', String(Math.round(percent)));
+  }
 }
 
 // ==================== 确定性优化：按钮切换 ====================
@@ -653,14 +700,14 @@ function checkFirstVisit() {
 
     if (!hasVisited) {
       // 首次访问，展开使用说明
-      elements.guidePanel.classList.add('expanded');
+      elements.guidePanel.classList.add('guide-panel--expanded');
       elements.toggleGuide.setAttribute('aria-expanded', 'true');
 
       // 标记已访问
       chrome.storage.local.set({ [STORAGE_KEY]: true });
     } else {
       // 已访问过，保持收起状态
-      elements.guidePanel.classList.remove('expanded');
+      elements.guidePanel.classList.remove('guide-panel--expanded');
       elements.toggleGuide.setAttribute('aria-expanded', 'false');
     }
   });
@@ -685,18 +732,18 @@ function updateButtonStates(type, isWorking, hasData) {
 
     // 更新按钮类名以显示加载状态
     if (isWorking) {
-      elements.startBtn.classList.add('loading');
+      elements.startBtn.classList.add('btn--loading');
     } else {
-      elements.startBtn.classList.remove('loading');
+      elements.startBtn.classList.remove('btn--loading');
     }
   } else if (type === 'qa') {
     toggleActionButton('qa', isWorking ? 'stop' : 'start');
     elements.exportQaBtn.disabled = !hasData;
 
     if (isWorking) {
-      elements.startQaBtn.classList.add('loading');
+      elements.startQaBtn.classList.add('btn--loading');
     } else {
-      elements.startQaBtn.classList.remove('loading');
+      elements.startQaBtn.classList.remove('btn--loading');
     }
   }
 }

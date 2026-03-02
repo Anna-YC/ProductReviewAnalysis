@@ -987,150 +987,110 @@ body {
   }
 }
 
-/* ==================== 兼容性别名（向后兼容）==================== */
-/* 保留旧版本类名以确保兼容性 - BEM 变体映射到旧类名 */
 
-/* 按钮兼容性别名 */
-.btn-primary {
-  background: var(--color-primary);
-  color: #fff;
-  border-color: var(--color-primary);
-}
-.btn-primary:hover:not(:disabled):not(.disabled) {
-  background: var(--color-primary-hover);
-  border-color: var(--color-primary-hover);
-}
-.btn-primary:active:not(:disabled):not(.disabled) {
-  background: var(--color-primary-active);
-  border-color: var(--color-primary-active);
+/* ==================== AntD 风格轻量优化补丁 (P0) ==================== */
+:root {
+  /* 使用更中性的主色，降低橙色侵入感 */
+  --color-primary: #1677ff;
+  --color-primary-hover: #4096ff;
+  --color-primary-active: #0958d9;
+  --color-primary-bg: #e6f4ff;
+  --color-primary-border: #91caff;
 }
 
-.btn-success {
-  background: var(--color-success);
-  color: #fff;
-  border-color: var(--color-success);
-}
-.btn-success:hover:not(:disabled):not(.disabled) {
-  background: var(--color-success-hover);
-  border-color: var(--color-success-hover);
-}
-.btn-success:active:not(:disabled):not(.disabled) {
-  background: var(--color-success-active);
-  border-color: var(--color-success-active);
+body {
+  max-width: 100%;
+  background: #f5f7fa;
 }
 
-.btn-warning {
-  background: var(--color-warning);
-  color: #fff;
-  border-color: var(--color-warning);
-}
-.btn-warning:hover:not(:disabled):not(.disabled) {
-  background: var(--color-warning-hover);
-  border-color: var(--color-warning-hover);
-}
-.btn-warning:active:not(:disabled):not(.disabled) {
-  background: var(--color-warning-active);
-  border-color: var(--color-warning-active);
-}
-
-.btn-secondary {
+.header {
   background: var(--color-bg-primary);
   color: var(--color-text-primary);
-  border-color: var(--color-border-base);
-}
-.btn-secondary:hover:not(:disabled):not(.disabled) {
-  color: var(--color-primary);
-  border-color: var(--color-primary);
-}
-.btn-secondary:active:not(:disabled):not(.disabled) {
-  color: var(--color-primary-hover);
-  border-color: var(--color-primary-hover);
+  border-bottom: 1px solid var(--color-border-light);
+  box-shadow: none;
 }
 
-.btn-ghost {
-  background: transparent;
+.icon-btn {
+  background: var(--color-bg-secondary);
   color: var(--color-text-secondary);
-  border-color: transparent;
+  border: 1px solid var(--color-border-light);
 }
-.btn-ghost:hover:not(:disabled):not(.disabled) {
+
+.icon-btn:hover {
   background: var(--color-bg-tertiary);
   color: var(--color-text-primary);
 }
-.btn-ghost:active:not(:disabled):not(.disabled) {
-  background: var(--color-gray-200);
-}
-.btn-ghost:disabled,
-.btn-ghost.disabled {
-  background: transparent !important;
-  border-color: transparent !important;
+
+.status-card {
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border-light);
+  box-shadow: var(--shadow-sm);
 }
 
-.btn-small {
-  height: 28px;
-  padding: 0 var(--spacing-3);
-  font-size: var(--font-size-xs);
+.tab-nav {
+  background: var(--color-bg-primary);
+  margin: 0 var(--spacing-5) var(--spacing-4);
+  padding: var(--spacing-1);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-light);
+  gap: 0;
 }
 
-.btn-icon {
-  font-size: var(--font-size-base);
+.tab-btn {
+  border: none;
+  border-radius: calc(var(--radius-md) - 2px);
+  background: transparent;
 }
 
-.btn.loading {
-  opacity: 0.7;
-  cursor: wait;
-}
-.btn.loading:hover {
-  opacity: 0.7;
-}
-.btn.loading .btn-icon {
-  animation: spin 1s var(--easing-linear) infinite;
+.tab-btn--active {
+  background: var(--color-primary-bg);
+  color: var(--color-primary-active);
+  border-color: transparent;
 }
 
-/* 状态卡片兼容性别名 */
-.status-card.ready::before {
-  background: var(--color-success);
-}
-.status-card.working::before {
-  background: var(--color-info);
-}
-.status-card.error::before {
-  background: var(--color-danger);
-}
-.status-card.success::before {
-  background: var(--color-success);
+.action-card,
+.tip-card {
+  box-shadow: var(--shadow-sm);
 }
 
-/* 标签页兼容性别名 */
-.tab-btn.active {
+.btn {
+  border-radius: var(--radius-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.btn-primary,
+.btn--primary {
   background: var(--color-primary);
-  color: #fff;
   border-color: var(--color-primary);
 }
 
-.tab-panel.active {
-  display: block;
+.btn-secondary,
+.btn--secondary {
+  border-color: var(--color-border-base);
 }
 
-/* Badge 兼容性别名 */
-.badge.active {
-  background: var(--color-primary);
-  color: #fff;
-  border-color: var(--color-primary);
+.progress-container {
+  background: #fcfcfd;
 }
 
-/* 进度条兼容性别名 */
-.progress-container.active {
-  display: block;
+.progress-fill,
+.progress-container__fill {
+  background: linear-gradient(90deg, var(--color-primary) 0%, #69b1ff 100%);
 }
 
-/* 使用说明面板兼容性别名 */
-.guide-panel.expanded {
-  max-height: 200px;
-  opacity: 1;
+.badge {
+  min-width: 48px;
+  font-variant-numeric: tabular-nums;
 }
 
-/* 代码块兼容性别名 */
-.code-block.command {
-  color: var(--color-success);
-  border-left: 3px solid var(--color-success);
+.footer {
+  padding-top: var(--spacing-3);
+}
+
+/* 可访问性：提高焦点可见性 */
+.btn:focus-visible,
+.tab-btn:focus-visible,
+.icon-btn:focus-visible {
+  outline: 2px solid #69b1ff;
+  outline-offset: 1px;
 }
